@@ -13,7 +13,7 @@ import {
 import { readMarked, toggleMarked } from '../core/front-matter.js';
 import { DEFAULT_SETTINGS, findSettingsProblems, normalizeSettings } from '../core/settings.js';
 import { renderBookmarkList } from './bookmark-list.js';
-import { bookIcon, clockIcon } from './icons.js';
+import { bookIcon, clockIcon, gearIcon } from './icons.js';
 
 const PIN_KEY = 'pinned';
 const READ_KEY = 'read';
@@ -602,6 +602,7 @@ export function createController({ port, createStore, document: doc = globalThis
       ];
       ui.readLaterButton.prepend(clockIcon(doc, { size: 13 }));
       ui.readLaterView.prepend(bookIcon(doc, { size: 15 }));
+      ui.openSettings.prepend(gearIcon(doc, { size: 15 }));
 
       ui.saveBookmark.addEventListener('click', () => {
         if (ui.bookmarkForm.hidden) openBookmarkForm('bookmarks');
