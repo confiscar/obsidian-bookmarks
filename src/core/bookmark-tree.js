@@ -167,6 +167,31 @@ export function allBookmarks(tree) {
 }
 
 /**
+ * The same note's structure with only some of its bookmarks in it — how the read later note is
+ * split into what has been read and what has not. Folders left empty drop out, since an empty
+ * folder in a filtered view says nothing.
+ *
+ * @param {BookmarkTree} tree
+ * @param {(bookmark: Bookmark) => boolean} keep
+ * @returns {BookmarkTree} a tree of its own; the groups are new objects, so nothing is shared
+ */
+export function filterBookmarks(tree, keep) {
+  const keepGroups = (groups) =>
+    groups.flatMap((group) => {
+      const children = keepGroups(group.children);
+      const bookmarks = group.bookmarks.filter(keep);
+      if (!bookmarks.length && !children.length) return [];
+
+      const path = [...group.path];
+      return [
+        { ...group, path, id: path.join('/'), bookmarks, children },
+      ];
+    });
+
+  return { ...tree, loose: tree.loose.filter(keep), groups: keepGroups(tree.groups) };
+}
+
+/**
  * Places a bookmark in a folder, appending whatever headings that folder still needs.
  * Everything already in the note is left alone.
  *

@@ -5,6 +5,7 @@ A small browser extension that keeps your bookmarks in a markdown file inside an
 - **★ Save bookmark** — prefills the page name, URL and folder, lets you edit all three, and writes one line into the note.
 - **Bookmark list** — your headings as folders, closed by default, with **Open all** / **Close all**. Click a bookmark to open it.
 - **Pinned** — a pin on every entry writes that bookmark into the note's front matter, holding it at the top of the list.
+- **Read later** — an optional second note: a button drops the page you are on into it, and a tab splits it into **Unread** and **Read**, each entry ticking between the two.
 - **Edit and delete** — every entry also carries a pencil and a waste basket: edit rewrites the name, URL and folder, delete removes the line.
 - **Favicons** — each entry shows its site's icon, read from the browser's own cache rather than the network.
 - **⚙ Settings** — a page of its own (back button returns to the list) for choosing the file and how to reach Obsidian.
@@ -60,6 +61,9 @@ Click the extension icon, then **⚙** (the **←** button returns to your bookm
 | Obsidian API base | `http://127.0.0.1:27123` |
 | API key | the key from step 1 |
 | Bookmark file (vault-relative) | e.g. `bookmarks.md`, or `Bookmarks/Weblinks.md` |
+| Read later file (vault-relative) | optional, e.g. `Bookmarks/ReadLater.md` — left empty, the whole feature stays hidden |
+
+Leave the read later file empty and nothing about it appears: no button, no tabs, and that note is never read.
 
 The path is resolved against your vault's real contents when you save settings. If it is spelled differently from the vault (case, `./`, doubled slashes) the extension says so and uses the correct path anyway; a folder, or a path that escapes the vault (`/`, `..`), is refused with an explanation. The first save creates the note if it does not exist yet.
 
@@ -132,12 +136,33 @@ Every entry shows the icon of its site, taken from the browser rather than fetch
 
 When there is nothing to show — Firefox has not seen the site, or the icon fails to load — the row keeps a globe glyph in the same slot, so names and actions stay aligned either way.
 
+### Read later
+
+With a **Read later file** set, the popup grows two things: a **Read later** button under **★ Save bookmark**, and a **Bookmarks** / **Read later** pair of tabs. The button saves, the tabs are how you look at what you saved. Clear the path again and both go away.
+
+**Read later** captures the page you are on in one click — the same name and URL the save form would have prefilled — files it under `Unsorted` in the read later note, and switches to that list so you can watch it land. Capturing a page that is already there does not add a second copy; if it had been marked read, it goes back to the unread list.
+
+The read later view splits the note into **Unread** and **Read**: two sections that fold like folders, with **Unread open** and **Read closed** to start with. Entries keep the headings of the note they came from, and a heading with nothing left in it is left out of the view rather than shown empty.
+
+The first action on each row is a tick instead of a pin: hollow for an entry that is still unread, filled once it is read, and clicking it moves the entry between the two sections. Everything else — pencil, waste basket, folders, **Open all** — behaves exactly as it does in the bookmark list, against the read later note.
+
+Read state lives in that note's front matter, in the same shape as `pinned:`:
+
+```md
+---
+read:
+  - '[Chord player](https://chords.test/player)'
+---
+```
+
+Being a list of links, the mark says nothing about where the entry sits or what it is called: renaming a read entry keeps it read, and deleting it takes its mark with it.
+
 ### Editing and deleting
 
 Every row's actions are **pin**, **pencil**, **waste basket**, in that order.
 
-- **Edit** opens the same form, filled with the bookmark's name, URL and folder, and the button becomes **Update**. Saving rewrites the bookmark **where it stands** when the folder is unchanged — same line, same place in the file — and moves it when you point it at another folder. Leaving the folder empty keeps a bookmark where it is; a bookmark that only exists in the front matter gets a line in the folder you type. If the URL changes, its pin follows it.
-- **Delete** asks first, in a panel that names the bookmark and says what goes with it — *Removes its line from Music/Production. Its pin goes too.* Cancel is focused, so a stray Enter can't delete anything. Confirming removes the line and takes the pin with it, so a deleted bookmark can't linger at the top of the list. Deleting a bookmark that is no longer in the note just clears its pin.
+- **Edit** opens the same form, filled with the bookmark's name, URL and folder, and the button becomes **Update**. Saving rewrites the bookmark **where it stands** when the folder is unchanged — same line, same place in the file — and moves it when you point it at another folder. Leaving the folder empty keeps a bookmark where it is; a bookmark that only exists in the front matter gets a line in the folder you type. If the URL changes, its pin — or, in the read later note, its read mark — follows it.
+- **Delete** asks first, in a panel that names the bookmark and says what goes with it — *Removes its line from Music/Production. Its pin goes too.* (**Its read mark goes too**, in the read later view.) Cancel is focused, so a stray Enter can't delete anything. Confirming removes the line and takes the pin — or the read mark — with it, so a deleted bookmark can't linger at the top of the list. Deleting a bookmark that is no longer in the note just clears its mark.
 
 Both act on the URL, which is how a bookmark is identified everywhere else: deleting a URL that appears in two folders removes both lines.
 
@@ -171,7 +196,7 @@ To work without Obsidian running (or without touching your vault), start the bun
 node scripts/fake-obsidian.mjs --port=27123 --key=test-key
 ```
 
-It implements the endpoints the extension uses and keeps the "vault" in memory: a flat `bookmarks.md`, plus `Bookmarks/Weblinks.md` seeded with `##` and `###` folders, `*` bullets and an `# Piracy` outlier — close enough to a real note to exercise folders, creation and insertion. Point the extension at it with API base `http://127.0.0.1:27123` and API key `test-key`, and set the bookmark file to `Bookmarks/Weblinks.md`.
+It implements the endpoints the extension uses and keeps the "vault" in memory: a flat `bookmarks.md`, plus `Bookmarks/Weblinks.md` seeded with `##` and `###` folders, `*` bullets and an `# Piracy` outlier, and a `Bookmarks/ReadLater.md` with no front matter yet — close enough to a real note to exercise folders, creation, insertion and the read later view. Point the extension at it with API base `http://127.0.0.1:27123` and API key `test-key`, and set the bookmark file to `Bookmarks/Weblinks.md`, the read later file to `Bookmarks/ReadLater.md`.
 
 It mirrors the real plugin's awkward corners on purpose: a folder is listed as `{"files":[…]}` with directories suffixed `/`, and a write aimed at a folder answers exactly what Obsidian answers — `500 {"message":"File already exists.","errorCode":50001}`.
 
@@ -185,13 +210,13 @@ src/
     index.html            main view (save + list) and settings view
     index.css
     index.js              picks a platform port, starts the controller
-    controller.js         state machine + the save/settings flows
-    bookmark-list.js      renders the pinned section and the folder tree
-    icons.js              the pin, pencil and waste basket glyphs, from Bootstrap Icons (MIT)
+    controller.js         state machine for both notes + the save/settings flows
+    bookmark-list.js      renders the pinned section, the folder tree, and the read later rows
+    icons.js              the pin, pencil, waste basket, book and tick glyphs, from Bootstrap Icons (MIT)
   core/                   browser-agnostic domain logic
     bookmarks.js          markdown links ⇄ bookmarks, URL normalization
     bookmark-tree.js      headings ⇄ folder tree, and placing a bookmark in one
-    front-matter.js       the pinned list in the note's YAML front matter
+    front-matter.js       the pinned/read lists in the note's YAML front matter
     settings.js           defaults, normalization, problems
     vault-path.js         resolves a typed path against the vault's real folders
     obsidian-file-store.js  read/append a note over the Local REST API
@@ -257,5 +282,5 @@ Implement these five methods and select the adapter in `src/popup/index.js`:
 - On Firefox the favicon cache only knows sites you have visited with the extension installed; Chrome shows an icon for anything it has ever loaded.
 - Folders come from headings; markdown stops at six levels, so a deeper path is refused rather than flattened.
 - The whole file is re-read (and every link re-parsed) on each refresh — fine for a few thousand lines.
-- No duplicate detection, and no conflict handling beyond "Obsidian is the only writer".
+- No duplicate detection, and no conflict handling beyond "Obsidian is the only writer". The read later button does not duplicate pages it already holds.
 - Requires Obsidian to be running; closing it makes the list empty and saves fail.

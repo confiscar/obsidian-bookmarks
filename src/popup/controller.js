@@ -2,6 +2,7 @@ import { normalizeUrl, siteKey, urlKey } from '../core/bookmarks.js';
 import {
   allBookmarks,
   allGroupIds,
+  filterBookmarks,
   findBookmarkPath,
   groupIds,
   insertBookmark,
@@ -9,9 +10,14 @@ import {
   removeBookmark,
   updateBookmark,
 } from '../core/bookmark-tree.js';
-import { readPinned, togglePinned } from '../core/front-matter.js';
+import { readMarked, toggleMarked } from '../core/front-matter.js';
 import { DEFAULT_SETTINGS, findSettingsProblems, normalizeSettings } from '../core/settings.js';
 import { renderBookmarkList } from './bookmark-list.js';
+import { bookIcon } from './icons.js';
+
+const PIN_KEY = 'pinned';
+const READ_KEY = 'read';
+const READ_LATER_FOLDER = 'Unsorted';
 
 /**
  * @typedef {object} PlatformPort
@@ -52,12 +58,27 @@ export function createController({ port, createStore, document: doc = globalThis
     pinnedOpen: true,
     collapsed: new Set(),
     icons: new Map(),
+    readLater: { tree: parseBookmarkTree(''), read: new Set() },
+    view: 'bookmarks',
     editing: null,
     pendingDelete: null,
     status: null,
   };
   const store = createStore(() => state.settings);
+  // The read later note is a second note of the same shape, so it is the same store pointed at
+  // another path in the vault. Nothing else about it is special.
+  const readLaterStore = createStore(() => ({
+    ...state.settings,
+    filePath: state.settings.readLaterPath,
+  }));
   let ui;
+
+  const hasReadLater = () => Boolean(state.settings.readLaterPath);
+  const currentStore = () => (state.view === 'readLater' ? readLaterStore : store);
+  const currentTree = () => (state.view === 'readLater' ? state.readLater.tree : state.tree);
+  const currentMarkKey = () => (state.view === 'readLater' ? READ_KEY : PIN_KEY);
+  const visibleGroups = () =>
+    state.view === 'readLater' ? readLaterSections().groups : state.tree.groups;
 
   const info = (text) => ({ kind: 'info', text });
   const failure = (text) => ({ kind: 'error', text });
@@ -73,7 +94,7 @@ export function createController({ port, createStore, document: doc = globalThis
     for (const button of ui.actionButtons) button.disabled = busy;
   };
 
-  /** @param {'bookmarks' | 'bookmarkForm' | 'settings'} view */
+  /** @param {'bookmarks' | 'readLater' | 'bookmarkForm' | 'settings'} view */
   function showView(view) {
     const isSettings = view === 'settings';
     ui.mainView.hidden = isSettings;
@@ -82,6 +103,8 @@ export function createController({ port, createStore, document: doc = globalThis
     ui.saveBookmark.setAttribute('aria-expanded', String(view === 'bookmarkForm'));
     ui.openSettings.classList.toggle('active', isSettings);
     if (view === 'bookmarkForm') ui.name.focus();
+    if (view === 'bookmarks' || view === 'readLater') state.view = view;
+    render();
   }
 
   function render() {
@@ -91,17 +114,28 @@ export function createController({ port, createStore, document: doc = globalThis
       element.dataset.kind = state.status?.kind ?? '';
     }
 
+    const showingReadLater = state.view === 'readLater';
+    ui.readLaterButton.hidden = !hasReadLater();
+    ui.tabs.hidden = !hasReadLater();
+    ui.tabBookmarks.setAttribute('aria-selected', String(!showingReadLater));
+    ui.tabReadLater.setAttribute('aria-selected', String(showingReadLater));
+
+    const sections = showingReadLater ? readLaterSections() : null;
+
     renderBookmarkList({
       document: doc,
       container: ui.list,
-      tree: state.tree,
+      tree: sections ?? state.tree,
       collapsed: state.collapsed,
-      pinned: state.pinned,
+      pinned: showingReadLater ? [] : state.pinned,
       pinnedOpen: state.pinnedOpen,
       icons: state.icons,
+      rowAction: showingReadLater ? 'read' : 'pin',
+      read: state.readLater.read,
       onOpenBookmark: (url) => port.openUrl(url),
       onToggleGroup: toggleGroup,
       onTogglePinned: togglePinnedEntry,
+      onToggleRead: toggleReadEntry,
       onEditBookmark: openEditForm,
       onDeleteBookmark: askToDelete,
       onTogglePinnedSection: () => {
@@ -110,12 +144,16 @@ export function createController({ port, createStore, document: doc = globalThis
       },
     });
 
-    const isEmpty = !state.tree.loose.length && !state.tree.groups.length;
+    const visible = sections ?? state.tree;
+    const isEmpty = !visible.loose.length && !visible.groups.length;
+    ui.emptyList.textContent = showingReadLater
+      ? 'Nothing saved for later yet.'
+      : 'No bookmarks found yet.';
     ui.emptyList.hidden = !isEmpty || state.status?.kind === 'error';
-    ui.listTools.hidden = !state.tree.groups.length;
+    ui.listTools.hidden = !visible.groups.length;
     renderDeletePanel();
 
-    const folderIds = allGroupIds(state.tree.groups);
+    const folderIds = allGroupIds(currentTree().groups);
     ui.groupOptions.replaceChildren(
       ...folderIds.map((id) => {
         const option = doc.createElement('option');
@@ -138,13 +176,24 @@ export function createController({ port, createStore, document: doc = globalThis
     render();
   }
 
-  /** Re-reads the note; throws so each caller can decide what to report. */
-  async function reloadBookmarks() {
+  /**
+   * Re-reads both notes; throws so each caller can decide what to report.
+   * @returns {Promise<void>}
+   */
+  async function reload() {
     setBusy(true);
     try {
       const markdown = await store.readText();
       state.tree = parseBookmarkTree(markdown);
-      state.pinned = readPinned(markdown).entries.map(({ name, url }) => ({ name, url }));
+      state.pinned = readMarked(markdown, PIN_KEY).entries.map(({ name, url }) => ({ name, url }));
+
+      if (hasReadLater()) {
+        const readLater = await readLaterStore.readText();
+        state.readLater.tree = parseBookmarkTree(readLater);
+        state.readLater.read = new Set(
+          readMarked(readLater, READ_KEY).entries.map((entry) => urlKey(entry.url)),
+        );
+      }
       state.icons = await loadIcons();
     } catch (error) {
       state.tree = parseBookmarkTree('');
@@ -158,6 +207,44 @@ export function createController({ port, createStore, document: doc = globalThis
   }
 
   /**
+   * The read later note as two sections: what is still waiting, and what has been read. Each
+   * keeps the folders it sits in, and folders with nothing in them drop out.
+   * @returns {import('../core/bookmark-tree.js').BookmarkTree}
+   */
+  function readLaterSections() {
+    const { tree, read } = state.readLater;
+    const isRead = (bookmark) => read.has(urlKey(bookmark.url));
+    const unread = filterBookmarks(tree, (bookmark) => !isRead(bookmark));
+    const done = filterBookmarks(tree, isRead);
+
+    if (!allBookmarks(unread).length && !allBookmarks(done).length) {
+      return { rootLevel: tree.rootLevel, listMarker: tree.listMarker, loose: [], groups: [] };
+    }
+
+    // Both notes hold folders of the same names, so the read later ones are keyed apart from
+    // the bookmark ones: opening or closing Music in one view leaves the other alone.
+    const keyed = (groups) =>
+      groups.map((group) => ({ ...group, id: `read:${group.id}`, children: keyed(group.children) }));
+
+    const section = (name, part) => ({
+      name,
+      level: 2,
+      path: [name],
+      id: `read:${name.toLowerCase()}`,
+      headingLine: -1,
+      bookmarks: part.loose,
+      children: keyed(part.groups),
+    });
+
+    return {
+      rootLevel: tree.rootLevel ?? 2,
+      listMarker: tree.listMarker,
+      loose: [],
+      groups: [section('Unread', unread), section('Read', done)],
+    };
+  }
+
+  /**
    * One lookup per site the list shows. Browsers that keep no favicon cache are asked to
    * capture the icons of the pages that are open first, which is the only chance they get.
    * @returns {Promise<Map<string, string | null>>}
@@ -165,8 +252,12 @@ export function createController({ port, createStore, document: doc = globalThis
   async function loadIcons() {
     await port.rememberFavicons().catch(() => {});
 
+    const shown = hasReadLater()
+      ? [...allBookmarks(state.tree), ...allBookmarks(state.readLater.tree), ...state.pinned]
+      : [...allBookmarks(state.tree), ...state.pinned];
+
     const icons = new Map();
-    for (const bookmark of [...allBookmarks(state.tree), ...state.pinned]) {
+    for (const bookmark of shown) {
       const key = siteKey(bookmark.url);
       if (icons.has(key)) continue;
       icons.set(key, await port.faviconUrl(bookmark.url).catch(() => null));
@@ -178,11 +269,74 @@ export function createController({ port, createStore, document: doc = globalThis
   async function togglePinnedEntry(bookmark) {
     setBusy(true);
     try {
-      const { markdown, pinned } = togglePinned(await store.readText(), bookmark);
+      const { markdown, marked } = toggleMarked(await store.readText(), PIN_KEY, bookmark);
       await store.writeText(markdown);
-      if (pinned) state.pinnedOpen = true;
-      await reloadBookmarks();
-      setStatus(info(pinned ? `Pinned “${bookmark.name}”.` : `Unpinned “${bookmark.name}”.`));
+      if (marked) state.pinnedOpen = true;
+      await reload();
+      setStatus(info(marked ? `Pinned “${bookmark.name}”.` : `Unpinned “${bookmark.name}”.`));
+    } catch (error) {
+      setStatus(failure(error.message));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** @param {{ name: string, url: string }} bookmark */
+  async function toggleReadEntry(bookmark) {
+    setBusy(true);
+    try {
+      const { markdown, marked } = toggleMarked(
+        await readLaterStore.readText(),
+        READ_KEY,
+        bookmark,
+      );
+      await readLaterStore.writeText(markdown);
+      await reload();
+      setStatus(
+        info(marked ? `Marked “${bookmark.name}” as read.` : `Marked “${bookmark.name}” as unread.`),
+      );
+    } catch (error) {
+      setStatus(failure(error.message));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** One click: put the page in front of you at the top of the unread list. */
+  async function captureToReadLater() {
+    if (!hasReadLater()) return;
+
+    const tab = await port.getActiveTab().catch(() => null);
+    const url = normalizeUrl(tab?.url);
+    if (!url) {
+      setStatus(failure('That page cannot be saved for later.'));
+      return;
+    }
+    const name = (tab?.title ?? '').trim() || url;
+
+    setBusy(true);
+    try {
+      const markdown = await readLaterStore.readText();
+      const queued = findBookmarkPath(parseBookmarkTree(markdown), url) !== null;
+      const read = isMarked(markdown, url, READ_KEY);
+
+      let next = markdown;
+      let message = `Saved “${name}” for later.`;
+      if (queued) {
+        // Already there: make sure it is back in the unread list rather than adding a second copy.
+        if (read) next = toggleMarked(markdown, READ_KEY, { name, url }).markdown;
+        message = `“${name}” is already in Read later.`;
+      } else {
+        next = insertBookmark(markdown, {
+          path: READ_LATER_FOLDER,
+          bookmark: { name, url },
+        }).markdown;
+      }
+
+      if (next !== markdown) await readLaterStore.writeText(next);
+      await reload();
+      showView('readLater');
+      setStatus(info(message));
     } catch (error) {
       setStatus(failure(error.message));
     } finally {
@@ -194,6 +348,7 @@ export function createController({ port, createStore, document: doc = globalThis
     const tab = await port.getActiveTab().catch(() => null);
     state.editing = null;
     state.pendingDelete = null;
+    state.view = 'bookmarks';
     ui.confirmBookmark.textContent = 'Save';
     ui.name.value = (tab?.title ?? '').trim();
     ui.url.value = normalizeUrl(tab?.url) ? tab.url : '';
@@ -210,7 +365,7 @@ export function createController({ port, createStore, document: doc = globalThis
     ui.confirmBookmark.textContent = 'Update';
     ui.name.value = bookmark.name;
     ui.url.value = bookmark.url;
-    ui.group.value = (findBookmarkPath(state.tree, bookmark.url) ?? []).join('/');
+    ui.group.value = (findBookmarkPath(currentTree(), bookmark.url) ?? []).join('/');
     setStatus(null);
     showView('bookmarkForm');
     ui.name.select();
@@ -240,18 +395,19 @@ export function createController({ port, createStore, document: doc = globalThis
     }
 
     const name = ui.name.value.trim() || url;
-    const folder = typedFolder || (findBookmarkPath(state.tree, editing.url) ?? []).join('/');
+    const note = currentStore();
+    const folder = typedFolder || (findBookmarkPath(currentTree(), editing.url) ?? []).join('/');
 
     let groupId;
     try {
-      const markdown = await store.readText();
+      const markdown = await note.readText();
       const updated = editing
         ? updateBookmark(markdown, { url: editing.url, bookmark: { name, url }, path: folder })
         : insertBookmark(markdown, { path: folder, bookmark: { name, url } });
 
-      await store.writeText(movedPin(updated.markdown, editing, { name, url }));
+      await note.writeText(movedMark(updated.markdown, editing, { name, url }));
       groupId = updated.groupId;
-      await reloadBookmarks();
+      await reload();
     } catch (error) {
       setStatus(failure(error.message));
       return;
@@ -264,25 +420,31 @@ export function createController({ port, createStore, document: doc = globalThis
   /**
    * @param {string} markdown
    * @param {string} url
-   * @returns {boolean} whether that URL is in the note's front matter
+   * @param {string} key front matter key the mark lives under
+   * @returns {boolean} whether that URL is marked in the note's front matter
    */
-  function isPinnedInText(markdown, url) {
-    return readPinned(markdown).entries.some((entry) => urlKey(entry.url) === urlKey(url));
+  function isMarked(markdown, url, key) {
+    return readMarked(markdown, key).entries.some(
+      (entry) => urlKey(entry.url) === urlKey(url),
+    );
   }
 
   /**
-   * Keeps a bookmark's pin with the bookmark when its URL changes.
+   * Keeps a bookmark's mark with the bookmark when its URL changes: a pinned bookmark stays
+   * pinned, a read one stays read.
+   *
    * @param {string} markdown
    * @param {{ name: string, url: string } | null} editing
    * @param {{ name: string, url: string }} bookmark
-   * @returns {string} the note, with the pin moved if there was one
+   * @returns {string} the note, with the mark moved if there was one
    */
-  function movedPin(markdown, editing, bookmark) {
+  function movedMark(markdown, editing, bookmark) {
+    const key = currentMarkKey();
     if (!editing || urlKey(editing.url) === urlKey(bookmark.url)) return markdown;
-    if (!isPinnedInText(markdown, editing.url)) return markdown;
+    if (!isMarked(markdown, editing.url, key)) return markdown;
 
-    const unpinned = togglePinned(markdown, editing).markdown;
-    return togglePinned(unpinned, bookmark).markdown;
+    const unmarked = toggleMarked(markdown, key, editing).markdown;
+    return toggleMarked(unmarked, key, bookmark).markdown;
   }
 
   /** Fills the panel that asks before deleting, so the row keeps its buttons. */
@@ -291,13 +453,16 @@ export function createController({ port, createStore, document: doc = globalThis
     ui.deletePanel.hidden = !bookmark;
     if (!bookmark) return;
 
-    const folder = (findBookmarkPath(state.tree, bookmark.url) ?? []).join('/');
-    const pinned = state.pinned.some((entry) => urlKey(entry.url) === urlKey(bookmark.url));
+    const readingLater = state.view === 'readLater';
+    const folder = (findBookmarkPath(currentTree(), bookmark.url) ?? []).join('/');
+    const marked = readingLater
+      ? state.readLater.read.has(urlKey(bookmark.url))
+      : state.pinned.some((entry) => urlKey(entry.url) === urlKey(bookmark.url));
 
     ui.deleteName.textContent = bookmark.name;
     ui.deleteDetail.textContent = [
       folder ? `Removes its line from ${folder}.` : 'Removes its line from the note.',
-      pinned ? 'Its pin goes too.' : '',
+      marked ? (readingLater ? 'Its read mark goes too.' : 'Its pin goes too.') : '',
     ]
       .filter(Boolean)
       .join(' ');
@@ -321,17 +486,19 @@ export function createController({ port, createStore, document: doc = globalThis
 
     setBusy(true);
     try {
-      const markdown = await store.readText();
+      const note = currentStore();
+      const key = currentMarkKey();
+      const markdown = await note.readText();
       const { markdown: withoutLine, removed } = removeBookmark(markdown, bookmark.url);
-      const unpin = isPinnedInText(withoutLine, bookmark.url);
-      const next = unpin ? togglePinned(withoutLine, bookmark).markdown : withoutLine;
+      const marked = isMarked(withoutLine, bookmark.url, key);
+      const next = marked ? toggleMarked(withoutLine, key, bookmark).markdown : withoutLine;
 
-      if (removed || unpin) await store.writeText(next);
+      if (removed || marked) await note.writeText(next);
       state.pendingDelete = null;
-      await reloadBookmarks();
+      await reload();
       setStatus(
         info(
-          removed || unpin
+          removed || marked
             ? `Deleted “${bookmark.name}”.`
             : `“${bookmark.name}” is no longer in the note.`,
         ),
@@ -348,6 +515,7 @@ export function createController({ port, createStore, document: doc = globalThis
     ui.apiBase.value = state.settings.apiBase;
     ui.apiKey.value = state.settings.apiKey;
     ui.filePath.value = state.settings.filePath;
+    ui.readLaterPath.value = state.settings.readLaterPath;
     setStatus(null);
     showView('settings');
   }
@@ -358,14 +526,17 @@ export function createController({ port, createStore, document: doc = globalThis
   }
 
   async function saveSettings() {
+    const hadReadLater = hasReadLater();
     const settings = normalizeSettings({
       apiBase: ui.apiBase.value,
       apiKey: ui.apiKey.value,
       filePath: ui.filePath.value,
+      readLaterPath: ui.readLaterPath.value,
     });
     const problems = findSettingsProblems(settings);
 
     state.settings = settings;
+    if (!hadReadLater && hasReadLater()) state.collapsed.add('read:read');
     try {
       await port.saveSettings(settings);
     } catch (error) {
@@ -375,7 +546,7 @@ export function createController({ port, createStore, document: doc = globalThis
 
     showView('bookmarks');
     try {
-      await reloadBookmarks();
+      await reload();
     } catch (error) {
       setStatus(failure(error.message));
       return;
@@ -383,7 +554,8 @@ export function createController({ port, createStore, document: doc = globalThis
 
     if (problems.length) setStatus(failure(problems.join(' ')));
     else {
-      const targetProblem = await store.findTargetProblem().catch((error) => error.message);
+      const note = hasReadLater() ? readLaterStore : store;
+      const targetProblem = await note.findTargetProblem().catch((error) => error.message);
       setStatus(targetProblem ? failure(targetProblem) : info('Settings saved.'));
     }
   }
@@ -446,17 +618,24 @@ export function createController({ port, createStore, document: doc = globalThis
         apiBase: element('api-base'),
         apiKey: element('api-key'),
         filePath: element('file-path'),
+        readLaterPath: element('read-later-path'),
+        readLaterButton: element('read-later'),
+        tabs: element('tabs'),
+        tabBookmarks: element('tab-bookmarks'),
+        tabReadLater: element('tab-read-later'),
         testConnection: element('test-connection'),
         requestLocalAccess: element('request-local-access'),
       };
       ui.actionButtons = [
         ui.saveBookmark,
+        ui.readLaterButton,
         ui.confirmBookmark,
         ui.saveSettings,
         ui.testConnection,
         ui.requestLocalAccess,
         ui.confirmDelete,
       ];
+      ui.readLaterButton.prepend(bookIcon(doc, { size: 13 }));
 
       ui.saveBookmark.addEventListener('click', () => {
         if (ui.bookmarkForm.hidden) openBookmarkForm();
@@ -469,14 +648,17 @@ export function createController({ port, createStore, document: doc = globalThis
       ui.cancelBookmark.addEventListener('click', closeBookmarkForm);
       ui.confirmDelete.addEventListener('click', confirmDelete);
       ui.cancelDelete.addEventListener('click', cancelDelete);
+      ui.readLaterButton.addEventListener('click', captureToReadLater);
+      ui.tabBookmarks.addEventListener('click', () => showView('bookmarks'));
+      ui.tabReadLater.addEventListener('click', () => showView('readLater'));
       ui.expandAll.addEventListener('click', () => {
         state.collapsed.clear();
         state.pinnedOpen = true;
         render();
       });
       ui.collapseAll.addEventListener('click', () => {
-        state.collapsed = new Set(allGroupIds(state.tree.groups));
-        state.pinnedOpen = false;
+        state.collapsed = new Set(allGroupIds(visibleGroups()));
+        if (state.view !== 'readLater') state.pinnedOpen = false;
         render();
       });
       ui.openSettings.addEventListener('click', openSettings);
@@ -492,7 +674,7 @@ export function createController({ port, createStore, document: doc = globalThis
       state.settings = normalizeSettings(await port.loadSettings());
 
       try {
-        await reloadBookmarks();
+        await reload();
       } catch (error) {
         setStatus(failure(error.message));
         return;
@@ -501,6 +683,7 @@ export function createController({ port, createStore, document: doc = globalThis
       // Opening the popup shows the pins and nothing else; folders are opened by hand, or all
       // at once with Open all. Folders that appear later — from a save, say — open as they did.
       state.collapsed = new Set(allGroupIds(state.tree.groups));
+      state.collapsed.add('read:read');
 
       const problems = findSettingsProblems(state.settings);
       if (problems.length) setStatus(info(problems.join(' ')));

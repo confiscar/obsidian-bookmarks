@@ -3,12 +3,15 @@
  * @property {string} apiBase origin of the Local REST API, e.g. `http://127.0.0.1:27123`
  * @property {string} apiKey bearer token copied from the plugin's settings
  * @property {string} filePath bookmark note, relative to the vault root
+ * @property {string} readLaterPath read later note, relative to the vault root; '' turns the
+ *   read later feature off entirely
  */
 
 export const DEFAULT_SETTINGS = Object.freeze({
   apiBase: 'http://127.0.0.1:27123',
   apiKey: '',
   filePath: 'bookmarks.md',
+  readLaterPath: '',
 });
 
 /**
@@ -23,6 +26,7 @@ export function normalizeSettings(raw = {}) {
     apiBase: apiBase.replace(/\/+$/, ''),
     apiKey: String(raw.apiKey ?? '').trim(),
     filePath,
+    readLaterPath: String(raw.readLaterPath ?? '').trim(),
   };
 }
 

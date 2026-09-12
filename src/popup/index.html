@@ -16,6 +16,15 @@
         </button>
       </header>
 
+      <button id="read-later" type="button" class="read-later" hidden>
+        Read later
+      </button>
+
+      <nav id="tabs" class="tabs" hidden>
+        <button id="tab-bookmarks" type="button" class="tab">Bookmarks</button>
+        <button id="tab-read-later" type="button" class="tab">Read later</button>
+      </nav>
+
       <form id="bookmark-form" class="panel" hidden>
         <label for="bookmark-name">Name</label>
         <input id="bookmark-name" autocomplete="off" placeholder="Bookmark name" />
@@ -64,6 +73,9 @@
         <input id="api-key" type="password" autocomplete="off" />
         <label for="file-path">Bookmark file (vault-relative)</label>
         <input id="file-path" autocomplete="off" spellcheck="false" placeholder="bookmarks.md" />
+        <label for="read-later-path">Read later file (vault-relative)</label>
+        <input id="read-later-path" autocomplete="off" spellcheck="false" placeholder="Bookmarks/ReadLater.md" />
+        <p class="hint">Leave the read later file empty to hide that feature.</p>
         <div class="row">
           <button id="save-settings" type="submit" class="primary">Save settings</button>
         </div>

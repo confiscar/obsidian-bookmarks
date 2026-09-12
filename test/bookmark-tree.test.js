@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { readPinned } from '../src/core/front-matter.js';
+import { readMarked } from '../src/core/front-matter.js';
 
 import {
   allBookmarks,
   allGroupIds,
+  filterBookmarks,
   findBookmarkLine,
   findBookmarkPath,
   insertBookmark,
@@ -246,11 +247,42 @@ test('a body scan ignores the front matter, even when it quotes the same URL', (
   assert.match(note.split('\n')[line], /^\* \[OneMotion\]/);
 
   const edited = updateBookmark(note, { url, bookmark: { name: 'OneMotion', url }, path: 'Music/Production' });
-  assert.deepEqual(readPinned(edited.markdown).entries.map((entry) => entry.url), [url]);
+  assert.deepEqual(readMarked(edited.markdown, 'pinned').entries.map((entry) => entry.url), [url]);
 
   const { markdown, removed } = removeBookmark(note, url);
   assert.equal(removed, true);
-  assert.deepEqual(readPinned(markdown).entries.map((entry) => entry.url), [url]);
+  assert.deepEqual(readMarked(markdown, 'pinned').entries.map((entry) => entry.url), [url]);
+});
+
+test('filtering keeps only the folders that still hold something', () => {
+  const tree = parseBookmarkTree(FILE);
+  const spotify = filterBookmarks(tree, (bookmark) => bookmark.name === 'Spotify');
+
+  assert.deepEqual(names(spotify.groups), ['Music']);
+  assert.deepEqual(names(spotify.groups[0].children), ['Listen']);
+  assert.deepEqual(allBookmarks(spotify).map((bookmark) => bookmark.name), ['Spotify']);
+  assert.deepEqual(spotify.groups[0].path, ['Music']);
+  assert.equal(spotify.groups[0].id, 'Music');
+});
+
+test('filtering nothing leaves nothing, and the note it came from is untouched', () => {
+  const tree = parseBookmarkTree(FILE);
+  const none = filterBookmarks(tree, () => false);
+
+  assert.deepEqual(none.groups, []);
+  assert.deepEqual(none.loose, []);
+  assert.equal(none.rootLevel, tree.rootLevel);
+  assert.deepEqual(names(tree.groups), ['Development', 'Music', 'Piracy']);
+  assert.equal(allBookmarks(tree).length, 6);
+});
+
+test('filtering keeps the loose bookmarks that pass, and shares no group objects', () => {
+  const tree = parseBookmarkTree(`* [Top](https://top.test/)\n\n${FILE}`);
+  const top = filterBookmarks(tree, (bookmark) => bookmark.url === 'https://top.test/');
+
+  assert.deepEqual(top.loose.map((bookmark) => bookmark.name), ['Top']);
+  assert.deepEqual(top.groups, []);
+  assert.notEqual(top.groups, tree.groups);
 });
 
 test('a bookmark is found by its URL, wherever it sits', () => {

@@ -3,10 +3,9 @@ import { formatBookmarkLink, parseBookmarks, urlKey } from './bookmarks.js';
 /** @typedef {{ name: string, url: string }} Bookmark */
 
 const FENCE = '---';
-const KEY = 'pinned';
-const KEY_LINE = /^pinned\s*:\s*(.*)$/;
 const LIST_ITEM = /^\s*-\s*(.+)$/;
 const EMPTY_LIST = '[]';
+const VALID_KEY = /^[a-z][a-z0-9_-]*$/;
 
 /**
  * Front matter only counts when the note opens with it, which is also what Obsidian requires.
@@ -23,34 +22,52 @@ export function frontMatterRange(markdown) {
   return null;
 }
 
+/** @param {string} key */
+function assertKey(key) {
+  if (!VALID_KEY.test(key)) throw new Error(`“${key}” is not a front matter key.`);
+}
+
+/** @param {string} key @returns {RegExp} */
+function keyLine(key) {
+  assertKey(key);
+  return new RegExp(`^${key}\\s*:\\s*(.*)$`);
+}
+
 /**
+ * The marks a note keeps about its own bookmarks — `pinned` in the bookmark note, `read` in the
+ * read later note. Membership of the list is the state; the URL is the identity.
+ *
  * @param {string} markdown
+ * @param {string} key front matter key, e.g. `pinned`
  * @returns {{
  *   range: { start: number, end: number } | null,
  *   keyLine: number | null,
  *   inline: string | null,
  *   listLines: number[],
  *   entries: { line: number, name: string, url: string }[],
- * }} where `inline` is whatever followed `pinned:` on its own line, `listLines` is every item
+ * }} where `inline` is whatever followed the key on its own line, `listLines` is every item
  * under the key and `entries` only the ones that hold a markdown link
  */
-export function readPinned(markdown) {
+export function readMarked(markdown, key) {
+  assertKey(key);
+
   const lines = String(markdown ?? '').split('\n');
   const range = frontMatterRange(markdown);
   if (!range) return { range: null, keyLine: null, inline: null, listLines: [], entries: [] };
 
+  const pattern = keyLine(key);
   const entries = [];
   const listLines = [];
-  let keyLine = null;
+  let keyLineIndex = null;
   let inline = null;
   let collecting = false;
 
   for (let index = range.start + 1; index < range.end; index += 1) {
     const line = lines[index];
-    const key = KEY_LINE.exec(line);
-    if (key) {
-      keyLine = index;
-      inline = key[1].trim() || null;
+    const match = pattern.exec(line);
+    if (match) {
+      keyLineIndex = index;
+      inline = match[1].trim() || null;
       collecting = !inline;
       continue;
     }
@@ -66,62 +83,66 @@ export function readPinned(markdown) {
     if (bookmark) entries.push({ line: index, ...bookmark });
   }
 
-  return { range, keyLine, inline, listLines, entries };
+  return { range, keyLine: keyLineIndex, inline, listLines, entries };
 }
 
 /**
- * Adds the bookmark to the note's front matter, or removes it when it is already there.
+ * Adds the bookmark to that front matter list, or removes it when it is already there.
  *
  * @param {string} markdown entire note
+ * @param {string} key front matter key, e.g. `read`
  * @param {Bookmark} bookmark
- * @returns {{ markdown: string, pinned: boolean }} the updated note and the state it now holds
+ * @returns {{ markdown: string, marked: boolean }} the updated note and the state it now holds
  */
-export function togglePinned(markdown, bookmark) {
+export function toggleMarked(markdown, key, bookmark) {
+  assertKey(key);
+
   const text = String(markdown ?? '');
-  const state = readPinned(text);
-  const key = urlKey(bookmark.url);
-  const matches = state.entries.filter((entry) => urlKey(entry.url) === key);
+  const state = readMarked(text, key);
+  const wanted = urlKey(bookmark.url);
+  const matches = state.entries.filter((entry) => urlKey(entry.url) === wanted);
 
   if (!matches.length) {
     if (state.inline && state.inline !== EMPTY_LIST) {
       throw new Error(
-        `The “${KEY}” value in this note's front matter has to be a list on its own lines before it can be edited.`,
+        `The “${key}” value in this note's front matter has to be a list on its own lines before it can be edited.`,
       );
     }
-    return { markdown: withEntry(text, state, bookmark), pinned: true };
+    return { markdown: withEntry(text, key, state, bookmark), marked: true };
   }
 
   const lines = text.split('\n');
   for (const entry of [...matches].sort((a, b) => b.line - a.line)) lines.splice(entry.line, 1);
 
-  const kept = readPinned(lines.join('\n'));
+  const kept = readMarked(lines.join('\n'), key);
   if (kept.keyLine !== null && !kept.listLines.length) lines.splice(kept.keyLine, 1);
 
-  return { markdown: withoutEmptiedBlock(lines), pinned: false };
+  return { markdown: withoutEmptiedBlock(lines, key), marked: false };
 }
 
 /**
  * @param {string} text
- * @param {ReturnType<typeof readPinned>} state
+ * @param {string} key
+ * @param {ReturnType<typeof readMarked>} state
  * @param {Bookmark} bookmark
  * @returns {string} the note with the bookmark added to the front matter list
  */
-function withEntry(text, state, bookmark) {
+function withEntry(text, key, state, bookmark) {
   const lines = text.split('\n');
   const entry = `  - ${yamlString(formatBookmarkLink(bookmark))}`;
 
   if (!state.range) {
-    lines.unshift(FENCE, `${KEY}:`, entry, FENCE, '');
+    lines.unshift(FENCE, `${key}:`, entry, FENCE, '');
     return lines.join('\n');
   }
 
   if (state.keyLine === null) {
-    lines.splice(state.range.end, 0, `${KEY}:`, entry);
+    lines.splice(state.range.end, 0, `${key}:`, entry);
     return lines.join('\n');
   }
 
   if (state.inline) {
-    lines[state.keyLine] = `${KEY}:`;
+    lines[state.keyLine] = `${key}:`;
     lines.splice(state.keyLine + 1, 0, entry);
     return lines.join('\n');
   }
@@ -132,15 +153,16 @@ function withEntry(text, state, bookmark) {
 }
 
 /**
- * @param {string[]} lines the note, with pinned lines already gone
+ * @param {string[]} lines the note, with marked lines already gone
+ * @param {string} key
  * @returns {string} the note, minus a front matter block that no longer holds anything
  */
-function withoutEmptiedBlock(lines) {
-  const { range, keyLine } = readPinned(lines.join('\n'));
-  if (!range || keyLine !== null) return lines.join('\n');
+function withoutEmptiedBlock(lines, key) {
+  const { range, keyLine: line } = readMarked(lines.join('\n'), key);
+  if (!range || line !== null) return lines.join('\n');
 
   const body = lines.slice(range.start + 1, range.end);
-  if (body.some((line) => line.trim())) return lines.join('\n');
+  if (body.some((entry) => entry.trim())) return lines.join('\n');
 
   lines.splice(range.end, 1);
   lines.splice(range.start, 1);

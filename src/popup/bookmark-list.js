@@ -1,5 +1,5 @@
 import { siteKey, urlKey } from '../core/bookmarks.js';
-import { deleteIcon, editIcon, globeIcon, pinIcon } from './icons.js';
+import { checkIcon, deleteIcon, editIcon, globeIcon, pinIcon } from './icons.js';
 
 /** @typedef {{ name: string, url: string }} Bookmark */
 
@@ -33,9 +33,13 @@ function countBookmarks(group) {
  * @param {Bookmark[]} options.pinned entries read from the note's front matter, in file order
  * @param {boolean} options.pinnedOpen whether the pinned section is expanded
  * @param {Map<string, string | null>} options.icons site icons, keyed by site
+ * @param {'pin' | 'read'} [options.rowAction] what the first button on a row does: pin the
+ *   bookmark, or mark it read — the read later note uses the second
+ * @param {Set<string>} [options.read] keys of the bookmarks already marked read
  * @param {(url: string) => void} options.onOpenBookmark
  * @param {(group: import('../core/bookmark-tree.js').Group) => void} options.onToggleGroup
  * @param {(bookmark: Bookmark) => void} options.onTogglePinned
+ * @param {(bookmark: Bookmark) => void} options.onToggleRead
  * @param {(bookmark: Bookmark) => void} options.onEditBookmark
  * @param {(bookmark: Bookmark) => void} options.onDeleteBookmark
  * @param {() => void} options.onTogglePinnedSection
@@ -48,9 +52,12 @@ export function renderBookmarkList({
   pinned,
   pinnedOpen,
   icons,
+  rowAction = 'pin',
+  read = new Set(),
   onOpenBookmark,
   onToggleGroup,
   onTogglePinned,
+  onToggleRead,
   onEditBookmark,
   onDeleteBookmark,
   onTogglePinnedSection,
@@ -153,17 +160,29 @@ export function renderBookmarkList({
     text.className = 'bookmark-text';
     text.append(link, host);
 
-    const isPinned = pinnedKeys.has(urlKey(bookmark.url));
+    const marked =
+      rowAction === 'read'
+        ? read.has(urlKey(bookmark.url))
+        : pinnedKeys.has(urlKey(bookmark.url));
+
     const actions = doc.createElement('div');
     actions.className = 'row-actions';
     actions.append(
-      actionButton({
-        className: 'pin',
-        title: isPinned ? 'Unpin this bookmark' : 'Pin this bookmark',
-        pressed: isPinned,
-        icon: pinIcon(doc, { filled: isPinned }),
-        onClick: () => onTogglePinned(bookmark),
-      }),
+      rowAction === 'read'
+        ? actionButton({
+            className: 'read',
+            title: marked ? 'Mark as unread' : 'Mark as read',
+            pressed: marked,
+            icon: checkIcon(doc, { filled: marked }),
+            onClick: () => onToggleRead(bookmark),
+          })
+        : actionButton({
+            className: 'pin',
+            title: marked ? 'Unpin this bookmark' : 'Pin this bookmark',
+            pressed: marked,
+            icon: pinIcon(doc, { filled: marked }),
+            onClick: () => onTogglePinned(bookmark),
+          }),
       actionButton({
         className: 'edit',
         title: 'Edit this bookmark',
