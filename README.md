@@ -104,10 +104,10 @@ Insertion details worth knowing, because they are visible in the file:
 
 ### Pinned
 
-The pin at the end of each entry toggles that bookmark in the note's front matter; solid means it is in there, faded means it is not. Pinned bookmarks are held at the **top of the list**, above the folders, so they are reachable without opening the folder they live in:
+The pin at the end of each entry toggles that bookmark in the note's front matter: an outline pin means it is not pinned, a filled one means it is. Pinned bookmarks are held at the **top of the list**, above the folders, so they are reachable without opening the folder they live in:
 
 ```
-📌 Pinned  2
+Pinned  2
   OneMotion      onemotion.com
   Amazon         amazon.co.uk
 
@@ -115,7 +115,9 @@ The pin at the end of each entry toggles that bookmark in the note's front matte
   ...
 ```
 
-The pinned rows are the same rows as the ones in the tree, so unpinning either copy removes the line and the two views can never disagree. The section only appears once something is pinned, and it folds like a folder: click **📌 Pinned** to collapse it, and **Open all** / **Close all** cover it along with everything else.
+The pinned rows are the same rows as the ones in the tree, so unpinning either copy removes the line and the two views can never disagree. The section only appears once something is pinned, and it folds like a folder: click **Pinned** to collapse it, and **Open all** / **Close all** cover it along with everything else.
+
+The pin is an inline SVG rather than an emoji, so it takes the theme's colour and needs no font: outline when unpinned, filled when pinned. It is the `pin`/`pin-fill` pair from [Bootstrap Icons](https://github.com/twbs/icons) (MIT) — see [THIRD-PARTY.md](THIRD-PARTY.md).
 
 Entries are one line per pin, in the order they were added:
 
@@ -162,6 +164,7 @@ src/
     index.js              picks a platform port, starts the controller
     controller.js         state machine + the save/settings flows
     bookmark-list.js      renders the pinned section and the folder tree
+    pin-icon.js           the pin glyph, from Bootstrap Icons (MIT)
   core/                   browser-agnostic domain logic
     bookmarks.js          markdown links ⇄ bookmarks, URL normalization
     bookmark-tree.js      headings ⇄ folder tree, and placing a bookmark in one

@@ -1,8 +1,7 @@
 import { pinnedKey } from '../core/front-matter.js';
+import { pinIcon } from './pin-icon.js';
 
 /** @typedef {{ name: string, url: string }} Bookmark */
-
-const PIN = '📌';
 
 /** @param {string} url @returns {string} the host, or '' when the URL cannot be parsed */
 function hostnameOf(url) {
@@ -61,7 +60,8 @@ export function renderBookmarkList({
 
   function pinnedRows() {
     const header = sectionRow({
-      name: `${PIN} Pinned`,
+      name: 'Pinned',
+      icon: pinIcon(doc, { filled: true }),
       count: pinned.length,
       depth: 0,
       className: 'group pinned',
@@ -100,8 +100,9 @@ export function renderBookmarkList({
    * @param {string} options.className
    * @param {boolean} options.open
    * @param {() => void} options.onToggle
+   * @param {SVGElement} [options.icon]
    */
-  function sectionRow({ name, count, depth, className, open, onToggle }) {
+  function sectionRow({ name, count, depth, className, open, onToggle, icon }) {
     const row = doc.createElement('li');
     row.className = className;
     row.style.setProperty('--depth', String(depth));
@@ -109,7 +110,8 @@ export function renderBookmarkList({
     const toggle = doc.createElement('button');
     toggle.type = 'button';
     toggle.className = 'group-toggle';
-    toggle.textContent = name;
+    if (icon) toggle.append(icon);
+    toggle.append(name);
     toggle.setAttribute('aria-expanded', String(open));
     toggle.addEventListener('click', onToggle);
 
@@ -149,7 +151,7 @@ export function renderBookmarkList({
     const pin = doc.createElement('button');
     pin.type = 'button';
     pin.className = 'pin';
-    pin.textContent = PIN;
+    pin.append(pinIcon(doc, { filled: isPinned }));
     pin.title = isPinned ? 'Unpin this bookmark' : 'Pin this bookmark';
     pin.setAttribute('aria-pressed', String(isPinned));
     pin.addEventListener('click', () => onTogglePinned(bookmark));
