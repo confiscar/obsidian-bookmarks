@@ -184,7 +184,7 @@ button.icon.active {
 #bookmark-list li {
   display: flex;
   flex-direction: column;
-  padding: 6px 8px 6px calc(3px + var(--depth, 0) * 14px);
+  padding: 6px 8px 6px calc(2px + var(--depth, 0) * 14px);
   border-radius: 7px;
 }
 
@@ -255,7 +255,7 @@ button.icon.active {
   justify-content: center;
   width: 16px;
   height: 16px;
-  padding-right: 4px;
+  padding-right: 7px;
   color: var(--muted);
 }
 
