@@ -222,11 +222,17 @@ button.icon.active {
 }
 
 .group-toggle svg {
-  margin-right: 4px;
-  vertical-align: -2px;
+  display: block;
+  /* The glyph's mass is its head, which sits above the middle of its box, so an icon
+     centred by box reads high beside a label; the nudge lands it on the text's optical
+     centre. The header asks for a cap-height icon so the lockup reads as one unit. */
+  transform: translateY(0.15em);
 }
 
 .group-toggle {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
   padding: 0;
   border: 0;
   background: none;
@@ -239,9 +245,10 @@ button.icon.active {
 
 .group-toggle::before {
   content: '▾';
-  display: inline-block;
-  width: 12px;
+  display: block;
+  width: 10px;
   color: var(--muted);
+  text-align: center;
 }
 
 .group-toggle[aria-expanded='false']::before {

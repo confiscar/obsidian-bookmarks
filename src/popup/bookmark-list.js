@@ -61,7 +61,7 @@ export function renderBookmarkList({
   function pinnedRows() {
     const header = sectionRow({
       name: 'Pinned',
-      icon: pinIcon(doc, { filled: true }),
+      icon: pinIcon(doc, { filled: true, size: 10 }),
       count: pinned.length,
       depth: 0,
       className: 'group pinned',

@@ -10,14 +10,14 @@ const FILLED =
 
 /**
  * @param {Document} doc
- * @param {{ filled?: boolean }} [state]
+ * @param {{ filled?: boolean, size?: number }} [state] `size` is in pixels, square
  * @returns {SVGElement} an inline pin, painted in `currentColor` so CSS decides its colour
  */
-export function pinIcon(doc, { filled = false } = {}) {
+export function pinIcon(doc, { filled = false, size = 14 } = {}) {
   const svg = doc.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('viewBox', '0 0 16 16');
-  svg.setAttribute('width', '14');
-  svg.setAttribute('height', '14');
+  svg.setAttribute('width', String(size));
+  svg.setAttribute('height', String(size));
   svg.setAttribute('fill', 'currentColor');
   svg.setAttribute('aria-hidden', 'true');
 
