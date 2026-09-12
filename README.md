@@ -5,7 +5,7 @@ A small browser extension that keeps your bookmarks in a markdown file inside an
 - **★ Save bookmark** — prefills the page name, URL and folder, lets you edit all three, and writes one line into the note.
 - **Bookmark list** — your headings as folders, closed by default, with **Open all** / **Close all**. Click a bookmark to open it.
 - **Pinned** — a pin on every entry writes that bookmark into the note's front matter, holding it at the top of the list.
-- **Read later** — an optional second note: a button drops the page you are on into it, and a tab splits it into **Unread** and **Read**, each entry ticking between the two.
+- **Read later** — an optional second note, opened by the book button in the header: a clock button saves the page you are on into it, and the list splits into **Unread** and **Read**, each entry ticking between the two.
 - **Edit and delete** — every entry also carries a pencil and a waste basket: edit rewrites the name, URL and folder, delete removes the line.
 - **Favicons** — each entry shows its site's icon, read from the browser's own cache rather than the network.
 - **⚙ Settings** — a page of its own (back button returns to the list) for choosing the file and how to reach Obsidian.
@@ -63,7 +63,7 @@ Click the extension icon, then **⚙** (the **←** button returns to your bookm
 | Bookmark file (vault-relative) | e.g. `bookmarks.md`, or `Bookmarks/Weblinks.md` |
 | Read later file (vault-relative) | optional, e.g. `Bookmarks/ReadLater.md` — left empty, the whole feature stays hidden |
 
-Leave the read later file empty and nothing about it appears: no button, no tabs, and that note is never read.
+Leave the read later file empty and nothing about it appears: neither button, and that note is never read.
 
 The path is resolved against your vault's real contents when you save settings. If it is spelled differently from the vault (case, `./`, doubled slashes) the extension says so and uses the correct path anyway; a folder, or a path that escapes the vault (`/`, `..`), is refused with an explanation. The first save creates the note if it does not exist yet.
 
@@ -138,7 +138,7 @@ When there is nothing to show — Firefox has not seen the site, or the icon fai
 
 ### Read later
 
-With a **Read later file** set, the popup grows two things: a **Read later** button under **★ Save bookmark**, and a **Bookmarks** / **Read later** pair of tabs. The button saves, the tabs are how you look at what you saved. Clear the path again and both go away.
+With a **Read later file** set, the popup grows two buttons that are easy to tell apart: a **book** in the header, left of **⚙**, which opens the read later list, and a **clock** under **★ Save bookmark**, which saves the page you are on. One looks, one saves — and the book stays lit while you are looking. Clear the path again and both go away.
 
 **Read later** captures the page you are on in one click — the same name and URL the save form would have prefilled — files it under `Unsorted` in the read later note, and switches to that list so you can watch it land. Capturing a page that is already there does not add a second copy; if it had been marked read, it goes back to the unread list.
 
@@ -212,7 +212,7 @@ src/
     index.js              picks a platform port, starts the controller
     controller.js         state machine for both notes + the save/settings flows
     bookmark-list.js      renders the pinned section, the folder tree, and the read later rows
-    icons.js              the pin, pencil, waste basket, book and tick glyphs, from Bootstrap Icons (MIT)
+    icons.js              the pin, pencil, waste basket, book, clock and tick glyphs, from Bootstrap Icons (MIT)
   core/                   browser-agnostic domain logic
     bookmarks.js          markdown links ⇄ bookmarks, URL normalization
     bookmark-tree.js      headings ⇄ folder tree, and placing a bookmark in one

@@ -13,7 +13,7 @@ import {
 import { readMarked, toggleMarked } from '../core/front-matter.js';
 import { DEFAULT_SETTINGS, findSettingsProblems, normalizeSettings } from '../core/settings.js';
 import { renderBookmarkList } from './bookmark-list.js';
-import { bookIcon } from './icons.js';
+import { bookIcon, clockIcon } from './icons.js';
 
 const PIN_KEY = 'pinned';
 const READ_KEY = 'read';
@@ -23,8 +23,8 @@ const READ_LATER_FOLDER = 'Unsorted';
  * @typedef {object} PlatformPort
  * @property {() => Promise<{ url: string, title: string } | null>} getActiveTab the tab the popup was
  *   opened from, or null when the browser will not tell us
- * @property {() => Promise<{ apiBase?: string, apiKey?: string, filePath?: string }>} loadSettings
- * @property {(settings: { apiBase: string, apiKey: string, filePath: string }) => Promise<void>} saveSettings
+ * @property {() => Promise<{ apiBase?: string, apiKey?: string, filePath?: string, readLaterPath?: string }>} loadSettings
+ * @property {(settings: { apiBase: string, apiKey: string, filePath: string, readLaterPath: string }) => Promise<void>} saveSettings
  * @property {(url: string) => Promise<void>} openUrl open a bookmark in a new tab
  * @property {() => Promise<boolean>} requestHostAccess ensure the loopback API may be called,
  *   prompting if the browser requires it
@@ -115,10 +115,15 @@ export function createController({ port, createStore, document: doc = globalThis
     }
 
     const showingReadLater = state.view === 'readLater';
-    ui.readLaterButton.hidden = !hasReadLater();
-    ui.tabs.hidden = !hasReadLater();
-    ui.tabBookmarks.setAttribute('aria-selected', String(!showingReadLater));
-    ui.tabReadLater.setAttribute('aria-selected', String(showingReadLater));
+    const readLater = hasReadLater();
+    const readLaterTitle = showingReadLater ? 'Back to bookmarks' : 'Read later';
+
+    ui.readLaterButton.hidden = !readLater;
+    ui.readLaterView.hidden = !readLater;
+    ui.readLaterView.classList.toggle('active', showingReadLater);
+    ui.readLaterView.setAttribute('aria-pressed', String(showingReadLater));
+    ui.readLaterView.title = readLaterTitle;
+    ui.readLaterView.setAttribute('aria-label', readLaterTitle);
 
     const sections = showingReadLater ? readLaterSections() : null;
 
@@ -620,9 +625,7 @@ export function createController({ port, createStore, document: doc = globalThis
         filePath: element('file-path'),
         readLaterPath: element('read-later-path'),
         readLaterButton: element('read-later'),
-        tabs: element('tabs'),
-        tabBookmarks: element('tab-bookmarks'),
-        tabReadLater: element('tab-read-later'),
+        readLaterView: element('read-later-view'),
         testConnection: element('test-connection'),
         requestLocalAccess: element('request-local-access'),
       };
@@ -635,7 +638,8 @@ export function createController({ port, createStore, document: doc = globalThis
         ui.requestLocalAccess,
         ui.confirmDelete,
       ];
-      ui.readLaterButton.prepend(bookIcon(doc, { size: 13 }));
+      ui.readLaterButton.prepend(clockIcon(doc, { size: 13 }));
+      ui.readLaterView.prepend(bookIcon(doc, { size: 15 }));
 
       ui.saveBookmark.addEventListener('click', () => {
         if (ui.bookmarkForm.hidden) openBookmarkForm();
@@ -649,8 +653,9 @@ export function createController({ port, createStore, document: doc = globalThis
       ui.confirmDelete.addEventListener('click', confirmDelete);
       ui.cancelDelete.addEventListener('click', cancelDelete);
       ui.readLaterButton.addEventListener('click', captureToReadLater);
-      ui.tabBookmarks.addEventListener('click', () => showView('bookmarks'));
-      ui.tabReadLater.addEventListener('click', () => showView('readLater'));
+      ui.readLaterView.addEventListener('click', () =>
+        showView(state.view === 'readLater' ? 'bookmarks' : 'readLater'),
+      );
       ui.expandAll.addEventListener('click', () => {
         state.collapsed.clear();
         state.pinnedOpen = true;

@@ -57,6 +57,7 @@ button:disabled {
 
 button.primary {
   flex: 1;
+  min-width: 0;
   border-color: transparent;
   background: var(--accent);
   color: #fff;
@@ -88,28 +89,10 @@ button.read-later:not([hidden]) {
   display: flex;
 }
 
-.tabs:not([hidden]) {
-  display: flex;
-  gap: 4px;
-  margin-top: 8px;
-}
-
-.tab {
-  flex: 1;
-  padding: 5px 8px;
-  border-color: transparent;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.tab[aria-selected='true'] {
-  border-color: var(--border);
-  background: color-mix(in srgb, var(--fg) 8%, transparent);
-  color: var(--fg);
-  font-weight: 600;
-}
-
 button.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 34px;
   font-size: 15px;
   line-height: 1;
