@@ -4,6 +4,7 @@ A small browser extension that keeps your bookmarks in a markdown file inside an
 
 - **★ Save bookmark** — prefills the page name, URL and folder, lets you edit all three, and writes one line into the note.
 - **Bookmark list** — your headings as folders, open by default, with **Open all** / **Close all**. Click a bookmark to open it.
+- **Favourites** — a star on every entry adds that bookmark to the note's front matter, or takes it out again.
 - **⚙ Settings** — a page of its own (back button returns to the list) for choosing the file and how to reach Obsidian.
 
 Works in Chrome (and Chromium: Edge, Brave, …) and Firefox from one codebase.
@@ -101,6 +102,25 @@ Insertion details worth knowing, because they are visible in the file:
 - New items reuse the bullet character the file already uses, `*` or `-`.
 - Headings and links inside fenced code blocks are ignored.
 
+### Favourites
+
+The star at the end of each entry toggles that bookmark in the note's front matter; filled means it is in there. Entries are one line per favourite, in the order they were added:
+
+```md
+---
+favourites:
+  - '[Chord player](https://chords.test/player)'
+  - '[Spotify](https://open.spotify.com/)'
+---
+```
+
+Each entry is single-quoted because front matter is YAML: an unquoted `[name](url)` opens a flow sequence, so the trailing `(url)` makes the property unreadable in Obsidian.
+
+- Clicking a filled star removes that URL's line. When the last favourite goes the `favourites:` key goes with it, and if the block then holds nothing else — because the extension created it — the whole `---` block is removed too, leaving the note exactly as it was.
+- URLs are compared in normalized form, so `https://a.test` and `https://a.test/` are the same favourite, while the line that gets written keeps the spelling the note itself uses.
+- Front matter is skipped when the note is read, so a favourite never appears twice in the list.
+- Hand edits are respected: items under `favourites:` that are not links are left alone (and keep the key alive), and an inline value like `favourites: ["[…]"]` is refused with an explanation rather than rewritten. `favourites: []` is filled in as an ordinary block list.
+
 ## Development
 
 ```sh
@@ -132,6 +152,7 @@ src/
   core/                   browser-agnostic domain logic
     bookmarks.js          markdown links ⇄ bookmarks, URL normalization
     bookmark-tree.js      headings ⇄ folder tree, and placing a bookmark in one
+    front-matter.js       the favourites list in the note's YAML front matter
     settings.js           defaults, normalization, problems
     vault-path.js         resolves a typed path against the vault's real folders
     obsidian-file-store.js  read/append a note over the Local REST API
@@ -175,7 +196,8 @@ Implement these five methods and select the adapter in `src/popup/index.js`:
 
 ## Limits of this version
 
-- Adds only: nothing is renamed, moved or deleted from the popup.
+- Adds only: nothing is renamed, moved or deleted from the popup — a favourite is a front matter line, nothing more.
+- Favourites are marked, not sorted or filtered: the list keeps its file order.
 - Folders come from headings; markdown stops at six levels, so a deeper path is refused rather than flattened.
 - The whole file is re-read (and every link re-parsed) on each refresh — fine for a few thousand lines.
 - No duplicate detection, and no conflict handling beyond "Obsidian is the only writer".

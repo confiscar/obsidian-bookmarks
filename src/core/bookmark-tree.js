@@ -1,4 +1,5 @@
 import { formatBookmark, parseBookmarks } from './bookmarks.js';
+import { frontMatterRange } from './front-matter.js';
 
 /** @typedef {{ name: string, url: string }} Bookmark */
 
@@ -66,8 +67,10 @@ export function normalizePath(path) {
  * @returns {BookmarkTree}
  */
 export function parseBookmarkTree(markdown) {
-  const lines = String(markdown ?? '').split('\n');
+  const text = String(markdown ?? '');
+  const lines = text.split('\n');
   const fenced = fencedLines(lines);
+  const frontMatter = frontMatterRange(text);
   const loose = [];
   const groups = [];
   const stack = [];
@@ -76,6 +79,7 @@ export function parseBookmarkTree(markdown) {
 
   lines.forEach((line, index) => {
     if (fenced[index]) return;
+    if (frontMatter && index >= frontMatter.start && index <= frontMatter.end) return;
 
     const marker = LIST_ITEM.exec(line);
     if (marker) markers.push(marker[1]);

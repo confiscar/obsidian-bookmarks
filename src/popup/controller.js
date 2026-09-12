@@ -1,5 +1,6 @@
 import { normalizeUrl } from '../core/bookmarks.js';
 import { allGroupIds, groupIds, insertBookmark, parseBookmarkTree } from '../core/bookmark-tree.js';
+import { favouriteKey, readFavourites, toggleFavourite } from '../core/front-matter.js';
 import { DEFAULT_SETTINGS, findSettingsProblems, normalizeSettings } from '../core/settings.js';
 import { renderBookmarkList } from './bookmark-list.js';
 
@@ -34,6 +35,7 @@ export function createController({ port, createStore, document: doc = globalThis
   const state = {
     settings: { ...DEFAULT_SETTINGS },
     tree: parseBookmarkTree(''),
+    favourites: new Set(),
     collapsed: new Set(),
     status: null,
   };
@@ -77,8 +79,10 @@ export function createController({ port, createStore, document: doc = globalThis
       container: ui.list,
       tree: state.tree,
       collapsed: state.collapsed,
+      favourites: state.favourites,
       onOpenBookmark: (url) => port.openUrl(url),
       onToggleGroup: toggleGroup,
+      onToggleFavourite: toggleFavouriteEntry,
     });
 
     const isEmpty = !state.tree.loose.length && !state.tree.groups.length;
@@ -112,13 +116,42 @@ export function createController({ port, createStore, document: doc = globalThis
   async function reloadBookmarks() {
     setBusy(true);
     try {
-      state.tree = parseBookmarkTree(await store.readText());
+      const markdown = await store.readText();
+      state.tree = parseBookmarkTree(markdown);
+      state.favourites = favouriteKeys(markdown);
     } catch (error) {
       state.tree = parseBookmarkTree('');
+      state.favourites = new Set();
       throw error;
     } finally {
       setBusy(false);
       render();
+    }
+  }
+
+  /** @param {string} markdown @returns {Set<string>} */
+  function favouriteKeys(markdown) {
+    return new Set(readFavourites(markdown).entries.map((entry) => favouriteKey(entry.url)));
+  }
+
+  /** @param {{ name: string, url: string }} bookmark */
+  async function toggleFavouriteEntry(bookmark) {
+    setBusy(true);
+    try {
+      const { markdown, favourite } = toggleFavourite(await store.readText(), bookmark);
+      await store.writeText(markdown);
+      await reloadBookmarks();
+      setStatus(
+        info(
+          favourite
+            ? `Added “${bookmark.name}” to favourites.`
+            : `Removed “${bookmark.name}” from favourites.`,
+        ),
+      );
+    } catch (error) {
+      setStatus(failure(error.message));
+    } finally {
+      setBusy(false);
     }
   }
 

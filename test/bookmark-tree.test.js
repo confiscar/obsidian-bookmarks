@@ -91,6 +91,27 @@ test('folder ids are the path, and descendants can be listed', () => {
   ]);
 });
 
+test('front matter is not read as headings or bookmarks', () => {
+  const note = [
+    '---',
+    'favourites:',
+    "  - '[A](https://a.test/)'",
+    'title: ## Nope',
+    '---',
+    '',
+    '## Real',
+    '',
+    '* [B](https://b.test)',
+  ].join('\n');
+  const tree = parseBookmarkTree(note);
+
+  assert.deepEqual(names(tree.groups), ['Real']);
+  assert.deepEqual(tree.loose, []);
+  assert.deepEqual(tree.groups[0].bookmarks.map((b) => b.name), ['B']);
+  assert.equal(tree.rootLevel, 2);
+  assert.equal(tree.listMarker, '*');
+});
+
 test('headings and links inside a fenced block are ignored', () => {
   const tree = parseBookmarkTree(
     ['## Real', '', '```', '## Fake', '* [Nope](https://nope.test)', '```', ''].join('\n'),

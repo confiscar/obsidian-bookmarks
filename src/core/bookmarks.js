@@ -37,11 +37,19 @@ export function escapeUrl(url) {
 
 /**
  * @param {Bookmark} bookmark
+ * @returns {string} the bookmark as a bare markdown link, for front matter and other prose
+ */
+export function formatBookmarkLink({ name, url }) {
+  return `[${escapeName(name)}](${escapeUrl(url)})`;
+}
+
+/**
+ * @param {Bookmark} bookmark
  * @param {string} [marker] bullet character, so new items match the ones already in the file
  * @returns {string} the bookmark as a markdown list item
  */
 export function formatBookmark({ name, url }, marker = '-') {
-  return `${marker} [${escapeName(name)}](${escapeUrl(url)})`;
+  return `${marker} ${formatBookmarkLink({ name, url })}`;
 }
 
 /**

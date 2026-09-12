@@ -1,3 +1,5 @@
+import { favouriteKey } from '../core/front-matter.js';
+
 /** @param {string} url @returns {string} the host, or '' when the URL cannot be parsed */
 function hostnameOf(url) {
   try {
@@ -24,16 +26,20 @@ function countBookmarks(group) {
  * @param {HTMLElement} options.container the list element to fill
  * @param {import('../core/bookmark-tree.js').BookmarkTree} options.tree
  * @param {Set<string>} options.collapsed ids of the folders the user closed
+ * @param {Set<string>} options.favourites keys of the URLs already listed in the front matter
  * @param {(url: string) => void} options.onOpenBookmark
  * @param {(group: import('../core/bookmark-tree.js').Group) => void} options.onToggleGroup
+ * @param {(bookmark: { name: string, url: string }) => void} options.onToggleFavourite
  */
 export function renderBookmarkList({
   document: doc,
   container,
   tree,
   collapsed,
+  favourites,
   onOpenBookmark,
   onToggleGroup,
+  onToggleFavourite,
 }) {
   const rows = [];
 
@@ -62,7 +68,20 @@ export function renderBookmarkList({
     host.className = 'host';
     host.textContent = hostnameOf(bookmark.url);
 
-    row.append(link, host);
+    const text = doc.createElement('div');
+    text.className = 'bookmark-text';
+    text.append(link, host);
+
+    const isFavourite = favourites.has(favouriteKey(bookmark.url));
+    const star = doc.createElement('button');
+    star.type = 'button';
+    star.className = 'favourite';
+    star.textContent = isFavourite ? '★' : '☆';
+    star.title = isFavourite ? 'Remove from favourites' : 'Add to favourites';
+    star.setAttribute('aria-pressed', String(isFavourite));
+    star.addEventListener('click', () => onToggleFavourite(bookmark));
+
+    row.append(text, star);
     return row;
   }
 

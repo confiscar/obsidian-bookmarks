@@ -182,6 +182,32 @@ button.icon.active {
   color: var(--muted);
 }
 
+#bookmark-list li.bookmark {
+  flex-direction: row;
+  gap: 4px;
+  align-items: center;
+}
+
+.bookmark-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.favourite {
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.favourite[aria-pressed='true'] {
+  color: #e0a000;
+}
+
 .group-toggle {
   padding: 0;
   border: 0;
