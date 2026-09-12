@@ -125,7 +125,7 @@ The pin is an inline SVG rather than an emoji, so it takes the theme's colour an
 Every row's actions are **pin**, **pencil**, **waste basket**, in that order.
 
 - **Edit** opens the same form, filled with the bookmark's name, URL and folder, and the button becomes **Update**. Saving rewrites the bookmark **where it stands** when the folder is unchanged — same line, same place in the file — and moves it when you point it at another folder. Leaving the folder empty keeps a bookmark where it is; a bookmark that only exists in the front matter gets a line in the folder you type. If the URL changes, its pin follows it.
-- **Delete** removes the bookmark's line from the note and takes its pin with it, so a deleted bookmark can't linger at the top of the list. Nothing is asked first — the note is the undo, or git if your vault is a repository. Deleting a bookmark that is no longer in the note just clears its pin.
+- **Delete** asks first, in a panel that names the bookmark and says what goes with it — *Removes its line from Music/Production. Its pin goes too.* Cancel is focused, so a stray Enter can't delete anything. Confirming removes the line and takes the pin with it, so a deleted bookmark can't linger at the top of the list. Deleting a bookmark that is no longer in the note just clears its pin.
 
 Both act on the URL, which is how a bookmark is identified everywhere else: deleting a URL that appears in two folders removes both lines.
 
@@ -222,7 +222,7 @@ Implement these five methods and select the adapter in `src/popup/index.js`:
 
 ## Limits of this version
 
-- Deleting is immediate and there is no undo in the popup: the note keeps the last state you saw, and a vault under git keeps the rest.
+- Once confirmed, deleting is immediate and there is no undo in the popup: the note keeps the last state you saw, and a vault under git keeps the rest.
 - Pinned bookmarks are also still in their folder; the order inside each folder is unchanged.
 - Folders come from headings; markdown stops at six levels, so a deeper path is refused rather than flattened.
 - The whole file is re-read (and every link re-parsed) on each refresh — fine for a few thousand lines.

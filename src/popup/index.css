@@ -61,6 +61,14 @@ button.primary {
   font-weight: 600;
 }
 
+button.danger {
+  flex: 1;
+  border-color: transparent;
+  background: var(--error);
+  color: #fff;
+  font-weight: 600;
+}
+
 button.icon {
   width: 34px;
   font-size: 15px;
@@ -155,6 +163,11 @@ button.icon.active {
   margin: 0 0 6px;
   color: var(--muted);
   font-size: 11px;
+}
+
+.question {
+  margin: 0 0 2px;
+  overflow-wrap: anywhere;
 }
 
 #bookmark-group[data-unknown] {

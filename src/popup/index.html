@@ -31,6 +31,15 @@
         </div>
       </form>
 
+      <div id="delete-panel" class="panel" hidden>
+        <p class="question">Delete <strong id="delete-name"></strong>?</p>
+        <p class="hint" id="delete-detail"></p>
+        <div class="row">
+          <button id="confirm-delete" type="button" class="danger">Delete</button>
+          <button id="cancel-delete" type="button">Cancel</button>
+        </div>
+      </div>
+
       <p id="status" role="status" hidden></p>
       <p id="empty-list" class="empty" hidden>No bookmarks found yet.</p>
       <div id="list-tools" class="tools" hidden>

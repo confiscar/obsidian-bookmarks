@@ -47,6 +47,7 @@ export function createController({ port, createStore, document: doc = globalThis
     pinnedOpen: true,
     collapsed: new Set(),
     editing: null,
+    pendingDelete: null,
     status: null,
   };
   const store = createStore(() => state.settings);
@@ -95,7 +96,7 @@ export function createController({ port, createStore, document: doc = globalThis
       onToggleGroup: toggleGroup,
       onTogglePinned: togglePinnedEntry,
       onEditBookmark: openEditForm,
-      onDeleteBookmark: deleteBookmark,
+      onDeleteBookmark: askToDelete,
       onTogglePinnedSection: () => {
         state.pinnedOpen = !state.pinnedOpen;
         render();
@@ -105,6 +106,7 @@ export function createController({ port, createStore, document: doc = globalThis
     const isEmpty = !state.tree.loose.length && !state.tree.groups.length;
     ui.emptyList.hidden = !isEmpty || state.status?.kind === 'error';
     ui.listTools.hidden = !state.tree.groups.length;
+    renderDeletePanel();
 
     const folderIds = allGroupIds(state.tree.groups);
     ui.groupOptions.replaceChildren(
@@ -165,6 +167,7 @@ export function createController({ port, createStore, document: doc = globalThis
   async function openBookmarkForm() {
     const tab = await port.getActiveTab().catch(() => null);
     state.editing = null;
+    state.pendingDelete = null;
     ui.confirmBookmark.textContent = 'Save';
     ui.name.value = (tab?.title ?? '').trim();
     ui.url.value = normalizeUrl(tab?.url) ? tab.url : '';
@@ -177,6 +180,7 @@ export function createController({ port, createStore, document: doc = globalThis
   /** @param {{ name: string, url: string }} bookmark */
   function openEditForm(bookmark) {
     state.editing = bookmark;
+    state.pendingDelete = null;
     ui.confirmBookmark.textContent = 'Update';
     ui.name.value = bookmark.name;
     ui.url.value = bookmark.url;
@@ -236,7 +240,7 @@ export function createController({ port, createStore, document: doc = globalThis
    * @param {string} url
    * @returns {boolean} whether that URL is in the note's front matter
    */
-  function isPinned(markdown, url) {
+  function isPinnedInText(markdown, url) {
     return readPinned(markdown).entries.some((entry) => urlKey(entry.url) === urlKey(url));
   }
 
@@ -249,22 +253,55 @@ export function createController({ port, createStore, document: doc = globalThis
    */
   function movedPin(markdown, editing, bookmark) {
     if (!editing || urlKey(editing.url) === urlKey(bookmark.url)) return markdown;
-    if (!isPinned(markdown, editing.url)) return markdown;
+    if (!isPinnedInText(markdown, editing.url)) return markdown;
 
     const unpinned = togglePinned(markdown, editing).markdown;
     return togglePinned(unpinned, bookmark).markdown;
   }
 
+  /** Fills the panel that asks before deleting, so the row keeps its buttons. */
+  function renderDeletePanel() {
+    const bookmark = state.pendingDelete;
+    ui.deletePanel.hidden = !bookmark;
+    if (!bookmark) return;
+
+    const folder = (findBookmarkPath(state.tree, bookmark.url) ?? []).join('/');
+    const pinned = state.pinned.some((entry) => urlKey(entry.url) === urlKey(bookmark.url));
+
+    ui.deleteName.textContent = bookmark.name;
+    ui.deleteDetail.textContent = [
+      folder ? `Removes its line from ${folder}.` : 'Removes its line from the note.',
+      pinned ? 'Its pin goes too.' : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }
+
   /** @param {{ name: string, url: string }} bookmark */
-  async function deleteBookmark(bookmark) {
+  function askToDelete(bookmark) {
+    state.pendingDelete = bookmark;
+    setStatus(null);
+    ui.cancelDelete.focus();
+  }
+
+  function cancelDelete() {
+    state.pendingDelete = null;
+    render();
+  }
+
+  async function confirmDelete() {
+    const bookmark = state.pendingDelete;
+    if (!bookmark) return;
+
     setBusy(true);
     try {
       const markdown = await store.readText();
       const { markdown: withoutLine, removed } = removeBookmark(markdown, bookmark.url);
-      const unpin = isPinned(withoutLine, bookmark.url);
+      const unpin = isPinnedInText(withoutLine, bookmark.url);
       const next = unpin ? togglePinned(withoutLine, bookmark).markdown : withoutLine;
 
       if (removed || unpin) await store.writeText(next);
+      state.pendingDelete = null;
       await reloadBookmarks();
       setStatus(
         info(
@@ -281,6 +318,7 @@ export function createController({ port, createStore, document: doc = globalThis
   }
 
   function openSettings() {
+    state.pendingDelete = null;
     ui.apiBase.value = state.settings.apiBase;
     ui.apiKey.value = state.settings.apiKey;
     ui.filePath.value = state.settings.filePath;
@@ -374,6 +412,11 @@ export function createController({ port, createStore, document: doc = globalThis
         backToBookmarks: element('back-to-bookmarks'),
         settingsForm: element('settings-form'),
         saveSettings: element('save-settings'),
+        deletePanel: element('delete-panel'),
+        deleteName: element('delete-name'),
+        deleteDetail: element('delete-detail'),
+        confirmDelete: element('confirm-delete'),
+        cancelDelete: element('cancel-delete'),
         apiBase: element('api-base'),
         apiKey: element('api-key'),
         filePath: element('file-path'),
@@ -386,6 +429,7 @@ export function createController({ port, createStore, document: doc = globalThis
         ui.saveSettings,
         ui.testConnection,
         ui.requestLocalAccess,
+        ui.confirmDelete,
       ];
 
       ui.saveBookmark.addEventListener('click', () => {
@@ -397,6 +441,8 @@ export function createController({ port, createStore, document: doc = globalThis
         saveBookmark();
       });
       ui.cancelBookmark.addEventListener('click', closeBookmarkForm);
+      ui.confirmDelete.addEventListener('click', confirmDelete);
+      ui.cancelDelete.addEventListener('click', cancelDelete);
       ui.expandAll.addEventListener('click', () => {
         state.collapsed.clear();
         state.pinnedOpen = true;

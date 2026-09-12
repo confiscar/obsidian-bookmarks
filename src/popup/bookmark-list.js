@@ -171,7 +171,7 @@ export function renderBookmarkList({
       actionButton({
         className: 'delete',
         title: 'Delete this bookmark',
-        icon: deleteIcon(doc),
+        icon: deleteIcon(doc, { size: 13 }),
         onClick: () => onDeleteBookmark(bookmark),
       }),
     );
