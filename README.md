@@ -180,6 +180,7 @@ It mirrors the real plugin's awkward corners on purpose: a folder is listed as `
 ```
 src/
   manifest.json           MV3 manifest (Firefox-only keys stripped at build time)
+  icons/                  extension icons, scaled from assets/icon-source.png
   popup/                  the popup: entrypoint, markup, styles, and its controller
     index.html            main view (save + list) and settings view
     index.css
@@ -199,9 +200,24 @@ src/
     firefox.js            already promise-based, so nearly a passthrough
 scripts/                  build + a fake Obsidian for local development
 test/                     node:test suites + the fake REST server
+assets/                   the artwork the icons are scaled from
 ```
 
 The rule the folders encode: `core/` and `popup/` never mention `chrome.*` or `browser.*`; `platform/` never contains product logic. The popup loads an adapter and hands it to the controller, which only knows the methods below.
+
+### Icons
+
+`src/icons/icon-{16,32,48,128}.png` are scaled from `assets/icon-source.png`: trimmed to the artwork, then centred in a square with a tenth of the canvas left as margin.
+
+```sh
+for size in 16 32 48 128; do
+  inner=$(( size * 9 / 10 ))
+  magick assets/icon-source.png -trim +repage -resize ${inner}x${inner} \\
+    -background none -gravity center -extent ${size}x${size} -strip src/icons/icon-${size}.png
+done
+```
+
+At 16 px the mark's extruded faces and thin outline compress into the silhouette, which is why the small icon reads as a shape rather than a detailed logo.
 
 ### Adding another browser
 
