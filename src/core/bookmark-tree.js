@@ -26,8 +26,17 @@ import { frontMatterRange } from './front-matter.js';
 const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
 const FENCE = /^\s*(```|~~~)/;
 const LIST_ITEM = /^\s*([-*+])\s+\[/;
-const DEFAULT_ROOT_LEVEL = 2;
-const DEEPEST_LEVEL = 6;
+export const DEFAULT_ROOT_LEVEL = 2;
+export const DEEPEST_LEVEL = 6;
+
+/**
+ * @param {string} line
+ * @returns {number | null} how many `#`s the line starts with, or null when it is not a heading
+ */
+export function headingLevel(line) {
+  const heading = HEADING.exec(line);
+  return heading ? heading[1].length : null;
+}
 
 /**
  * @param {string[]} lines
@@ -50,9 +59,9 @@ const sameName = (a, b) => a.toLowerCase() === b.toLowerCase();
 
 /**
  * @param {string} markdown
- * @returns {boolean[]} whether each line holds note content
+ * @returns {boolean[]} whether each line holds note content, rather than front matter or a fence
  */
-function contentLines(markdown) {
+export function contentLineMask(markdown) {
   const lines = String(markdown ?? '').split('\n');
   const fenced = fencedLines(lines);
   const frontMatter = frontMatterRange(markdown);
@@ -82,7 +91,7 @@ export function normalizePath(path) {
 export function parseBookmarkTree(markdown) {
   const text = String(markdown ?? '');
   const lines = text.split('\n');
-  const content = contentLines(text);
+  const isContent = contentLineMask(text);
   const loose = [];
   const groups = [];
   const stack = [];
@@ -90,7 +99,7 @@ export function parseBookmarkTree(markdown) {
   let rootLevel = null;
 
   lines.forEach((line, index) => {
-    if (!content[index]) return;
+    if (!isContent[index]) return;
 
     const marker = LIST_ITEM.exec(line);
     if (marker) markers.push(marker[1]);
@@ -194,7 +203,7 @@ export function insertBookmark(markdown, { path, bookmark }) {
   const text = String(markdown ?? '');
   const tree = parseBookmarkTree(text);
   const lines = text.split('\n');
-  const content = contentLines(text);
+  const isContent = contentLineMask(text);
   const item = formatBookmark(bookmark, tree.listMarker);
 
   let group = null;
@@ -212,7 +221,7 @@ export function insertBookmark(markdown, { path, bookmark }) {
   }
 
   if (missingAt === names.length) {
-    insertAtRegionEnd(lines, content, group.headingLine, Infinity, item);
+    insertAtRegionEnd(lines, isContent, group.headingLine, Infinity, item);
     return { markdown: lines.join('\n'), groupId: group.id };
   }
 
@@ -228,8 +237,8 @@ export function insertBookmark(markdown, { path, bookmark }) {
   ]);
   block.push('', item, '');
 
-  if (group) insertAtRegionEnd(lines, content, group.headingLine, group.level, block.join('\n'));
-  else insertAtRegionEnd(lines, content, -1, level - 1, block.join('\n'));
+  if (group) insertAtRegionEnd(lines, isContent, group.headingLine, group.level, block.join('\n'));
+  else insertAtRegionEnd(lines, isContent, -1, level - 1, block.join('\n'));
 
   return { markdown: lines.join('\n'), groupId: (group?.path ?? []).concat(missing).join('/') };
 }
@@ -242,11 +251,11 @@ export function insertBookmark(markdown, { path, bookmark }) {
 export function findBookmarkLine(markdown, url) {
   const text = String(markdown ?? '');
   const lines = text.split('\n');
-  const content = contentLines(text);
+  const isContent = contentLineMask(text);
   const wanted = urlKey(url);
 
   for (const [index, line] of lines.entries()) {
-    if (!content[index]) continue;
+    if (!isContent[index]) continue;
     if (parseBookmarks(line).some((bookmark) => urlKey(bookmark.url) === wanted)) return index;
   }
   return null;
@@ -281,12 +290,12 @@ export function findBookmarkPath(tree, url) {
 export function removeBookmark(markdown, url) {
   const text = String(markdown ?? '');
   const lines = text.split('\n');
-  const content = contentLines(text);
+  const isContent = contentLineMask(text);
   const wanted = urlKey(url);
 
   const kept = lines.filter(
     (line, index) =>
-      !content[index] ||
+      !isContent[index] ||
       !parseBookmarks(line).some((bookmark) => urlKey(bookmark.url) === wanted),
   );
   return { markdown: kept.join('\n'), removed: kept.length !== lines.length };
@@ -303,7 +312,7 @@ export function updateBookmark(markdown, { url, bookmark, path }) {
   const target = normalizePath(path);
   const tree = parseBookmarkTree(text);
   const line = findBookmarkLine(text, url);
-  const content = contentLines(text);
+  const isContent = contentLineMask(text);
   const current = findBookmarkPath(tree, url);
 
   const samePath =
@@ -311,7 +320,7 @@ export function updateBookmark(markdown, { url, bookmark, path }) {
     current.length === target.length &&
     current.every((name, index) => sameName(name, target[index]));
 
-  const alreadyInPlace = line !== null && samePath && content[line];
+  const alreadyInPlace = line !== null && samePath && isContent[line];
   if (alreadyInPlace) {
     const lines = text.split('\n');
     lines[line] = formatBookmark(bookmark, tree.listMarker);
@@ -324,25 +333,30 @@ export function updateBookmark(markdown, { url, bookmark, path }) {
 }
 
 /**
+ * @param {string[]} lines
+ * @param {boolean[]} isContent which lines hold note content
+ * @param {number} startLine heading the region belongs to, or -1 for the whole file
+ * @param {number} boundLevel the first heading at or above this level ends the region
+ * @returns {number} the line the region ends on, exclusive
+ */
+export function regionEnd(lines, isContent, startLine, boundLevel) {
+  for (let index = startLine + 1; index < lines.length; index += 1) {
+    if (!isContent[index]) continue;
+    const level = headingLevel(lines[index]);
+    if (level !== null && level <= boundLevel) return index;
+  }
+  return lines.length;
+}
+
+/**
  * @param {string[]} lines mutated in place
- * @param {boolean[]} content which lines hold note content
+ * @param {boolean[]} isContent which lines hold note content
  * @param {number} startLine heading the region belongs to, or -1 for the whole file
  * @param {number} boundLevel the first heading at or above this level ends the region
  * @param {string} text inserted as the region's last content
  */
-function insertAtRegionEnd(lines, content, startLine, boundLevel, text) {
-  let end = lines.length;
-
-  for (let index = startLine + 1; index < lines.length; index += 1) {
-    if (!content[index]) continue;
-    const heading = HEADING.exec(lines[index]);
-    if (heading && heading[1].length <= boundLevel) {
-      end = index;
-      break;
-    }
-  }
-
-  let at = end;
+function insertAtRegionEnd(lines, isContent, startLine, boundLevel, text) {
+  let at = regionEnd(lines, isContent, startLine, boundLevel);
   while (at > startLine + 1 && lines[at - 1].trim() === '') at -= 1;
 
   const insertion = text.split('\n');

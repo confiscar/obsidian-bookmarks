@@ -39,6 +39,8 @@ function countBookmarks(group) {
  * @param {(bookmark: Bookmark) => void} options.onEditBookmark
  * @param {(bookmark: Bookmark) => void} options.onDeleteBookmark
  * @param {() => void} options.onTogglePinnedSection
+ * @returns {{ rows: object[] }} every row that stands for something in the note, so a drag layer
+ *   can tell what it is holding
  */
 export function renderBookmarkList({
   document: doc,
@@ -59,13 +61,19 @@ export function renderBookmarkList({
   onTogglePinnedSection,
 }) {
   const pinnedKeys = new Set(pinned.map((bookmark) => urlKey(bookmark.url)));
-  const rows = [];
+  const elements = [];
+  const draggable = [];
 
-  if (pinned.length) rows.push(...pinnedRows());
-  for (const bookmark of tree.loose) rows.push(bookmarkRow(bookmark, 0));
-  for (const group of tree.groups) rows.push(...groupRows(group, 0));
+  if (pinned.length) elements.push(...pinnedRows());
+  for (const bookmark of tree.loose) {
+    const element = bookmarkRow(bookmark, 0);
+    elements.push(element);
+    draggable.push({ element, kind: 'bookmark', depth: 0, url: bookmark.url, name: bookmark.name });
+  }
+  for (const group of tree.groups) elements.push(...groupRows(group, 0));
 
-  container.replaceChildren(...rows);
+  container.replaceChildren(...elements);
+  return { rows: draggable };
 
   function pinnedRows() {
     const header = sectionRow({
@@ -92,13 +100,25 @@ export function renderBookmarkList({
       open,
       onToggle: () => onToggleGroup(group),
     });
+    draggable.push({
+      element: header,
+      kind: 'group',
+      depth,
+      path: group.path,
+      open,
+      ownBookmarks: group.bookmarks.length,
+    });
 
     if (!open) return [header];
-    return [
-      header,
-      ...group.bookmarks.map((bookmark) => bookmarkRow(bookmark, depth + 1)),
-      ...group.children.flatMap((child) => groupRows(child, depth + 1)),
-    ];
+
+    const rows = [header];
+    for (const bookmark of group.bookmarks) {
+      const element = bookmarkRow(bookmark, depth + 1);
+      draggable.push({ element, kind: 'bookmark', depth: depth + 1, url: bookmark.url, name: bookmark.name });
+      rows.push(element);
+    }
+    for (const child of group.children) rows.push(...groupRows(child, depth + 1));
+    return rows;
   }
 
   /**
@@ -141,6 +161,7 @@ export function renderBookmarkList({
     const link = doc.createElement('a');
     link.href = bookmark.url;
     link.rel = 'noreferrer';
+    link.draggable = false;
     link.textContent = bookmark.name;
     link.title = bookmark.url;
     link.addEventListener('click', (event) => {

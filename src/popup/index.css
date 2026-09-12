@@ -269,6 +269,34 @@ button.icon.active {
   color: var(--error);
 }
 
+#bookmark-list.dragging {
+  user-select: none;
+}
+
+#bookmark-list li.dragging {
+  opacity: 0.4;
+}
+
+#bookmark-list li.drop-placeholder {
+  margin-left: calc(2px + var(--depth, 0) * 14px);
+  border: 1px dashed var(--accent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 20;
+  list-style: none;
+  pointer-events: none;
+  opacity: 0.9;
+  border-radius: 7px;
+  background: var(--bg);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 30%);
+}
+
 #bookmark-list li.pinned {
   flex-direction: row;
   gap: 6px;

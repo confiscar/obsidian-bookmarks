@@ -13,7 +13,9 @@ import {
 import { readMarked, toggleMarked } from '../core/front-matter.js';
 import { DEFAULT_SETTINGS, findSettingsProblems, normalizeSettings } from '../core/settings.js';
 import { renderBookmarkList } from './bookmark-list.js';
+import { createDragLayer } from './drag.js';
 import { bookIcon, clockIcon, gearIcon } from './icons.js';
+import { moveBookmark, moveGroup } from '../core/reorder.js';
 
 const PIN_KEY = 'pinned';
 const READ_KEY = 'read';
@@ -22,6 +24,10 @@ const READ_SECTION = 'Read';
 
 /** @param {string} name @returns {string} the collapse key of that read later section */
 const readLaterSectionId = (name) => `read:${name.toLowerCase()}`;
+
+/** @param {string[]} parentPath @returns {string} that folder, or the top level for the root */
+const destinationOf = (parentPath) =>
+  parentPath.length ? parentPath.join('/') : 'the top level';
 
 /**
  * @typedef {object} PlatformPort
@@ -74,6 +80,7 @@ export function createController({ port, createStore, document: doc = globalThis
     filePath: state.settings.readLaterPath,
   }));
   let ui;
+  let dragLayer;
 
   const hasReadLater = () => Boolean(state.settings.readLaterPath);
   const currentStore = () => (state.view === 'readLater' ? readLaterStore : store);
@@ -129,7 +136,7 @@ export function createController({ port, createStore, document: doc = globalThis
 
     const sections = showingReadLater ? readLaterSections() : null;
 
-    renderBookmarkList({
+    const { rows } = renderBookmarkList({
       document: doc,
       container: ui.list,
       tree: sections ?? state.tree,
@@ -150,6 +157,7 @@ export function createController({ port, createStore, document: doc = globalThis
         render();
       },
     });
+    dragLayer.setRows(showingReadLater ? [] : rows);
 
     const visible = sections ?? state.tree;
     const isEmpty = !visible.loose.length && !visible.groups.length;
@@ -260,6 +268,37 @@ export function createController({ port, createStore, document: doc = globalThis
       icons.set(key, await port.faviconUrl(bookmark.url).catch(() => null));
     }
     return icons;
+  }
+
+  /**
+   * @param {{
+   *   kind: 'group' | 'bookmark',
+   *   url?: string,
+   *   path?: string[],
+   *   name?: string,
+   *   to: { parentPath: string[], index: number },
+   * }} change what the drag layer let go of, and where
+   */
+  async function moveRow(change) {
+    const note = currentStore();
+    setBusy(true);
+    try {
+      const markdown = await note.readText();
+      const moved =
+        change.kind === 'group'
+          ? moveGroup(markdown, { path: change.path, to: change.to })
+          : moveBookmark(markdown, { url: change.url, to: change.to });
+
+      if (moved.markdown !== markdown) await note.writeText(moved.markdown);
+      await reload();
+
+      const label = change.kind === 'group' ? moved.path.at(-1) : change.name;
+      setStatus(info(`Moved “${label}” to ${destinationOf(change.to.parentPath)}.`));
+    } catch (error) {
+      setStatus(failure(error.message));
+    } finally {
+      setBusy(false);
+    }
   }
 
   /** @param {{ name: string, url: string }} bookmark */
@@ -593,6 +632,7 @@ export function createController({ port, createStore, document: doc = globalThis
       ui.readLaterButton.prepend(clockIcon(doc, { size: 13 }));
       ui.readLaterView.prepend(bookIcon(doc, { size: 15 }));
       ui.openSettings.prepend(gearIcon(doc, { size: 15 }));
+      dragLayer = createDragLayer({ list: ui.list, document: doc, onDrop: moveRow });
 
       ui.saveBookmark.addEventListener('click', () => {
         if (ui.bookmarkForm.hidden) openBookmarkForm('bookmarks');
