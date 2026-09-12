@@ -1,11 +1,19 @@
+/** @typedef {{ name: string, url: string }} Bookmark */
+
 // Markdown links only: never images (![alt](url)), never non-http schemes.
 const MARKDOWN_HTTP_LINK = /(?<!!)\[((?:[^[\]\n\\]|\\.)*)\]\(\s*(https?:\/\/[^\s)]+)\s*\)/g;
 
+/** @param {string} char one character of a URL, matched by escapeUrl's class */
 const PERCENT_ENCODE = (char) =>
   `%${char.codePointAt(0).toString(16).toUpperCase().padStart(2, '0')}`;
 
+/** @param {string} text link text straight out of the file, escape characters included */
 const unescapeName = (text) => text.replace(/\\([[\]\\])/g, '$1');
 
+/**
+ * @param {string} markdown contents of the whole note
+ * @returns {Bookmark[]} every bookmark in the note, in file order
+ */
 export function parseBookmarks(markdown) {
   if (typeof markdown !== 'string') return [];
 
@@ -17,18 +25,28 @@ export function parseBookmarks(markdown) {
   return bookmarks;
 }
 
+/** @param {string} name display text, as the user typed it */
 export function escapeName(name) {
   return String(name).replace(/\s+/g, ' ').trim().replace(/([[\]\\])/g, '\\$1');
 }
 
+/** @param {string} url */
 export function escapeUrl(url) {
   return String(url).replace(/[\s()<>]/g, PERCENT_ENCODE);
 }
 
+/**
+ * @param {Bookmark} bookmark
+ * @returns {string} the bookmark as a markdown list item
+ */
 export function formatBookmark({ name, url }) {
   return `- [${escapeName(name)}](${escapeUrl(url)})`;
 }
 
+/**
+ * @param {string} input whatever the user typed, with or without a scheme
+ * @returns {string | null} canonical http(s) URL, or null when the input is not one
+ */
 export function normalizeUrl(input) {
   const raw = String(input ?? '').trim();
   if (!raw) return null;
@@ -44,6 +62,11 @@ export function normalizeUrl(input) {
   return url.href;
 }
 
+/**
+ * @param {string} markdown current note contents; an empty file is fine
+ * @param {Bookmark} bookmark
+ * @returns {string} the note contents with the bookmark appended as the last line
+ */
 export function appendBookmark(markdown, bookmark) {
   const existing = typeof markdown === 'string' ? markdown : '';
   const line = formatBookmark(bookmark);

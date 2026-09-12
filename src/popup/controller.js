@@ -1,6 +1,31 @@
 import { formatBookmark, normalizeUrl, parseBookmarks } from '../core/bookmarks.js';
 import { DEFAULT_SETTINGS, findSettingsProblems, normalizeSettings } from '../core/settings.js';
 
+/**
+ * @typedef {object} PlatformPort
+ * @property {() => Promise<{ url: string, title: string } | null>} getActiveTab the tab the popup was
+ *   opened from, or null when the browser will not tell us
+ * @property {() => Promise<{ apiBase?: string, apiKey?: string, filePath?: string }>} loadSettings
+ * @property {(settings: { apiBase: string, apiKey: string, filePath: string }) => Promise<void>} saveSettings
+ * @property {(url: string) => Promise<void>} openUrl open a bookmark in a new tab
+ * @property {() => Promise<boolean>} requestHostAccess ensure the loopback API may be called,
+ *   prompting if the browser requires it
+ */
+
+/**
+ * @typedef {object} FileStore
+ * @property {() => Promise<string>} readText contents of the bookmark note; '' when it does not exist
+ * @property {(line: string) => Promise<void>} appendLine add one line, creating the note if needed
+ * @property {() => Promise<string | null>} findTargetProblem null when the configured note is usable
+ */
+
+/**
+ * @param {object} options
+ * @param {PlatformPort} options.port browser APIs; implemented in `platform/`
+ * @param {(getSettings: () => { apiBase: string, apiKey: string, filePath: string }) => FileStore} options.createStore
+ *   builds the store around a live getter, so it always sees the current settings
+ * @param {Document} [options.document] the document to render into, injectable for tests
+ */
 export function createController({ port, createStore, document: doc = globalThis.document }) {
   const state = {
     settings: { ...DEFAULT_SETTINGS },
@@ -13,15 +38,18 @@ export function createController({ port, createStore, document: doc = globalThis
   const info = (text) => ({ kind: 'info', text });
   const failure = (text) => ({ kind: 'error', text });
 
+  /** @param {{ kind: 'info' | 'error', text: string } | null} status */
   const setStatus = (status) => {
     state.status = status;
     render();
   };
 
+  /** @param {boolean} busy disables every action button while work is in flight */
   const setBusy = (busy) => {
     for (const button of ui.actionButtons) button.disabled = busy;
   };
 
+  /** @param {'bookmarks' | 'newBookmark' | 'settings'} view */
   function showView(view) {
     const isSettings = view === 'settings';
     ui.mainView.hidden = isSettings;
@@ -43,6 +71,7 @@ export function createController({ port, createStore, document: doc = globalThis
     ui.emptyList.hidden = state.bookmarks.length > 0 || state.status?.kind === 'error';
   }
 
+  /** @param {{ name: string, url: string }} bookmark */
   function renderItem(bookmark) {
     const item = doc.createElement('li');
 
@@ -64,6 +93,10 @@ export function createController({ port, createStore, document: doc = globalThis
     return item;
   }
 
+  /**
+   * @param {string} url
+   * @returns {string} the host, or '' when the URL cannot be parsed
+   */
   function hostnameOf(url) {
     try {
       return new URL(url).hostname;
@@ -72,6 +105,7 @@ export function createController({ port, createStore, document: doc = globalThis
     }
   }
 
+  /** Re-reads the note; throws so each caller can decide what to report. */
   async function reloadBookmarks() {
     setBusy(true);
     try {

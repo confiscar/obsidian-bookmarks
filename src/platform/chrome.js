@@ -1,3 +1,8 @@
+/**
+ * @param {Function} method a `chrome.*` method that takes a callback last
+ * @param {...unknown} args its arguments, without the callback
+ * @returns {Promise<unknown>} rejects with Chrome's `runtime.lastError` when the call fails
+ */
 function callChromeApi(method, ...args) {
   return new Promise((resolve, reject) => {
     method(...args, (result) => {

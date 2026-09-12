@@ -9,8 +9,13 @@ const notRelativeMessage = (typed) =>
 
 const insideFileMessage = (real) => `“${real}” is a file, so nothing can live inside it.`;
 
-/** @param {string} filePath exactly as the user typed it */
-/** @param {(directory: string) => Promise<string[] | null>} listDirectory null when the folder is absent */
+/**
+ * @param {string} filePath exactly as the user typed it
+ * @param {(directory: string) => Promise<string[] | null>} listDirectory entries of a vault folder,
+ *   directories suffixed `/`; null when the folder does not exist
+ * @returns {Promise<{ resolvedPath: string | null, problem: string | null }>} `resolvedPath` is the path
+ *   to read and write, or null when `problem` says why the target cannot be used
+ */
 export async function resolveVaultPath(filePath, listDirectory) {
   const segments = filePath.split('/').filter((segment) => segment && segment !== '.');
   if (!segments.length || filePath.startsWith('/') || segments.includes('..')) {

@@ -1,9 +1,20 @@
+/**
+ * @typedef {object} Settings
+ * @property {string} apiBase origin of the Local REST API, e.g. `http://127.0.0.1:27123`
+ * @property {string} apiKey bearer token copied from the plugin's settings
+ * @property {string} filePath bookmark note, relative to the vault root
+ */
+
 export const DEFAULT_SETTINGS = Object.freeze({
   apiBase: 'http://127.0.0.1:27123',
   apiKey: '',
   filePath: 'bookmarks.md',
 });
 
+/**
+ * @param {Partial<Settings>} [raw] whatever came out of browser storage or the settings form
+ * @returns {Settings} usable settings, filled in from the defaults where needed
+ */
 export function normalizeSettings(raw = {}) {
   const apiBase = String(raw.apiBase ?? '').trim() || DEFAULT_SETTINGS.apiBase;
   const filePath = String(raw.filePath ?? '').trim() || DEFAULT_SETTINGS.filePath;
@@ -15,6 +26,10 @@ export function normalizeSettings(raw = {}) {
   };
 }
 
+/**
+ * @param {Settings} settings
+ * @returns {string[]} human-readable problems, empty when the settings are usable as they are
+ */
 export function findSettingsProblems(settings) {
   const problems = [];
 

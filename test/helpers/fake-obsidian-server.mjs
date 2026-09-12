@@ -1,5 +1,19 @@
 import http from 'node:http';
 
+/**
+ * @param {object} [options]
+ * @param {string} [options.apiKey] token the `Authorization` header must carry
+ * @param {Record<string, string>} [options.files] initial notes, keyed by vault-relative path
+ * @param {string[]} [options.dirs] extra empty folders, since empty folders imply no file
+ * @param {number} [options.port] 0 picks a free port
+ * @returns {Promise<{
+ *   port: number,
+ *   url: string,
+ *   vault: Map<string, string>,
+ *   requests: { method: string, path: string, authorization?: string, body?: string }[],
+ *   close: () => Promise<void>,
+ * }>}
+ */
 export async function startFakeObsidian({
   apiKey = 'test-key',
   files = {},
