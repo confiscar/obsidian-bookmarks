@@ -3,38 +3,38 @@
   <head>
     <meta charset="utf-8" />
     <title>Obsidian bookmarks</title>
-    <link rel="stylesheet" href="popup.css" />
+    <link rel="stylesheet" href="index.css" />
   </head>
   <body>
     <div id="main-view">
       <header class="bar">
-        <button id="star" type="button" class="primary" aria-expanded="false">
+        <button id="save-bookmark" type="button" class="primary" aria-expanded="false">
           ★ Save bookmark
         </button>
-        <button id="settings-toggle" type="button" class="icon" title="Settings" aria-label="Settings">
+        <button id="open-settings" type="button" class="icon" title="Settings" aria-label="Settings">
           ⚙
         </button>
       </header>
 
-      <form id="save-form" class="panel" hidden>
-        <label for="name">Name</label>
-        <input id="name" autocomplete="off" placeholder="Bookmark name" />
-        <label for="url">URL</label>
-        <input id="url" autocomplete="off" spellcheck="false" inputmode="url" placeholder="https://example.com" />
+      <form id="bookmark-form" class="panel" hidden>
+        <label for="bookmark-name">Name</label>
+        <input id="bookmark-name" autocomplete="off" placeholder="Bookmark name" />
+        <label for="bookmark-url">URL</label>
+        <input id="bookmark-url" autocomplete="off" spellcheck="false" inputmode="url" placeholder="https://example.com" />
         <div class="row">
-          <button id="save" type="submit" class="primary">Save</button>
-          <button id="save-cancel" type="button">Cancel</button>
+          <button id="confirm-bookmark" type="submit" class="primary">Save</button>
+          <button id="cancel-bookmark" type="button">Cancel</button>
         </div>
       </form>
 
       <p id="status" role="status" hidden></p>
-      <p id="empty" class="empty" hidden>No bookmarks found yet.</p>
-      <ul id="list"></ul>
+      <p id="empty-list" class="empty" hidden>No bookmarks found yet.</p>
+      <ul id="bookmark-list"></ul>
     </div>
 
     <div id="settings-view" hidden>
       <header class="bar">
-        <button id="settings-back" type="button" class="icon" title="Back to bookmarks" aria-label="Back to bookmarks">
+        <button id="back-to-bookmarks" type="button" class="icon" title="Back to bookmarks" aria-label="Back to bookmarks">
           ←
         </button>
         <h1 class="title">Settings</h1>
@@ -48,17 +48,17 @@
         <label for="file-path">Bookmark file (vault-relative)</label>
         <input id="file-path" autocomplete="off" spellcheck="false" placeholder="bookmarks.md" />
         <div class="row">
-          <button id="settings-save" type="submit" class="primary">Save settings</button>
+          <button id="save-settings" type="submit" class="primary">Save settings</button>
         </div>
         <div class="row">
           <button id="test-connection" type="button">Test connection</button>
-          <button id="grant-access" type="button">Request local access</button>
+          <button id="request-local-access" type="button">Request local access</button>
         </div>
       </form>
 
       <p id="settings-status" role="status" hidden></p>
     </div>
 
-    <script type="module" src="popup.js"></script>
+    <script type="module" src="index.js"></script>
   </body>
 </html>

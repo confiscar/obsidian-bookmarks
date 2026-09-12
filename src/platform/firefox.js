@@ -1,13 +1,5 @@
-/**
- * Firefox implementation of the platform port.
- *
- * Firefox's `browser.*` APIs already return promises and reject with real
- * errors, so this adapter is a thin translation and nothing more. The one
- * behavioural difference worth knowing: Firefox makes manifest `host_permissions`
- * opt-in, so `requestHostAccess()` may actually show the user a prompt.
- */
+const declaredOrigins = () => browser.runtime.getManifest().host_permissions ?? [];
 
-/** @returns {import('../core/ports.js').PlatformPort} */
 export function createFirefoxPort() {
   return {
     name: 'firefox',
@@ -19,8 +11,7 @@ export function createFirefoxPort() {
     },
 
     async loadSettings() {
-      const stored = await browser.storage.local.get('settings');
-      return stored?.settings ?? {};
+      return (await browser.storage.local.get('settings'))?.settings ?? {};
     },
 
     async saveSettings(settings) {
@@ -32,7 +23,7 @@ export function createFirefoxPort() {
     },
 
     async requestHostAccess() {
-      const origins = ['http://127.0.0.1/*', 'https://127.0.0.1/*'];
+      const origins = declaredOrigins();
       if (await browser.permissions.contains({ origins })) return true;
       return browser.permissions.request({ origins });
     },

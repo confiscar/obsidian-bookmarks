@@ -1,10 +1,3 @@
-/**
- * Run the fake Obsidian REST API for local development, so the extension can be
- * exercised without Obsidian installed.
- *
- *   node scripts/fake-obsidian.mjs --port=27123 --key=test-key
- */
-
 import { startFakeObsidian } from '../test/helpers/fake-obsidian-server.mjs';
 
 const options = Object.fromEntries(
@@ -16,8 +9,6 @@ const options = Object.fromEntries(
 
 const apiKey = options.key ?? 'test-key';
 
-// A vault shaped like a real one: a note at the root, and a folder that is a
-// plausible-looking-but-wrong target for the "bookmark file" setting.
 const server = await startFakeObsidian({
   apiKey,
   port: Number(options.port ?? 27123),
@@ -32,7 +23,7 @@ const server = await startFakeObsidian({
 console.log(`fake Obsidian listening on ${server.url}`);
 console.log(`  API key: ${apiKey}`);
 console.log('  vault:   bookmarks.md, Bookmarks/Weblinks.md, Bookmarks/ReadLater.md');
-console.log('           (point the extension at "Bookmarks" to see the folder error)');
+console.log('           set the bookmark file to "Bookmarks" to see the folder error');
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, async () => {

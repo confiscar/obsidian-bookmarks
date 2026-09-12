@@ -68,11 +68,10 @@ test('appendBookmark adds exactly one trailing newline', () => {
   );
 });
 
-test('formatting then parsing round-trips a bookmark', () => {
+test('formatting then parsing round-trips a bookmark, with the URL percent-encoded', () => {
   const bookmark = { name: 'A ] tricky (one)', url: 'https://example.com/a_(b)' };
   const markdown = appendBookmark('', bookmark);
 
-  // The URL comes back percent-encoded, which is the same target, not the same string.
   assert.deepEqual(parseBookmarks(markdown), [
     { name: 'A ] tricky (one)', url: 'https://example.com/a_%28b%29' },
   ]);

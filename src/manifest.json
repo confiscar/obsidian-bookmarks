@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Save the current page into a markdown file in your Obsidian vault, and browse the bookmarks already in it.",
   "action": {
-    "default_popup": "popup.html",
+    "default_popup": "popup/index.html",
     "default_title": "Obsidian bookmarks"
   },
   "permissions": ["activeTab", "storage"],

@@ -1,25 +1,5 @@
-/**
- * A tiny stand-in for the Obsidian Local REST API, for tests and local dev.
- *
- * Implements only what the extension uses, but models directories the way the
- * real plugin does:
- *   GET  /            → 200 (status, no auth)
- *   GET  /vault/{p}   → note text, a `{files: […]}` listing for a folder
- *                       (directories listed with a trailing slash), or 404
- *   POST /vault/{p}   → append to the note, creating it if needed; 500
- *                       "File already exists." when `p` is a folder, which is
- *                       what Obsidian's vault.create() throws for a TFolder
- */
-
 import http from 'node:http';
 
-/**
- * @param {object} [options]
- * @param {string} [options.apiKey]
- * @param {Record<string, string>} [options.files] initial vault files, by vault-relative path
- * @param {string[]} [options.dirs] extra empty directories
- * @param {number} [options.port] 0 = pick a free port
- */
 export async function startFakeObsidian({
   apiKey = 'test-key',
   files = {},
@@ -52,7 +32,6 @@ export async function startFakeObsidian({
     return [...entries].sort();
   };
 
-  /** @type {{ method: string, path: string, authorization?: string, body?: string }[]} */
   const requests = [];
 
   const server = http.createServer(async (req, res) => {
@@ -108,12 +87,10 @@ export async function startFakeObsidian({
 
       if (req.method === 'POST') {
         if (name === '') {
-          // The real plugin rejects a path with a trailing slash for writes.
           json(405, { message: 'Request method is valid only for files', errorCode: 40510 });
           return;
         }
         if (isDirectory(name)) {
-          // A TFolder already occupies this path, so vault.create() refuses.
           json(500, { message: 'File already exists.', errorCode: 50001 });
           return;
         }

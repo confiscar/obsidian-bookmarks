@@ -1,21 +1,19 @@
-/**
- * The platform ports are the only browser-specific code, so they get pinned
- * here against fake `chrome`/`browser` globals. This is what the core relies on
- * and what the Chrome build cannot exercise for Firefox.
- */
-
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createChromePort } from '../src/platform/chrome.js';
 import { createFirefoxPort } from '../src/platform/firefox.js';
 
-/** @param {object} [options] */
+const HOST_PERMISSIONS = ['http://127.0.0.1/*', 'https://127.0.0.1/*'];
+
 function fakeChrome({ tabs = [{ url: 'https://x.test', title: 'X' }], stored = {}, hasAccess = true, grantsAccess = true } = {}) {
   const calls = [];
   return {
     calls,
-    runtime: { lastError: null },
+    runtime: {
+      lastError: null,
+      getManifest: () => ({ host_permissions: HOST_PERMISSIONS }),
+    },
     tabs: {
       query(options, callback) {
         calls.push(['tabs.query', options]);
@@ -51,11 +49,11 @@ function fakeChrome({ tabs = [{ url: 'https://x.test', title: 'X' }], stored = {
   };
 }
 
-/** @param {object} [options] */
 function fakeBrowser({ tabs = [{ url: 'https://y.test', title: 'Y' }], stored = {}, hasAccess = true, grantsAccess = true } = {}) {
   const calls = [];
   return {
     calls,
+    runtime: { getManifest: () => ({ host_permissions: HOST_PERMISSIONS }) },
     tabs: {
       async query(options) {
         calls.push(['tabs.query', options]);
@@ -152,7 +150,7 @@ test('chrome: existing host access skips the prompt', async (t) => {
   );
 });
 
-test('chrome: missing host access asks for it', async (t) => {
+test('chrome: missing host access asks for the declared origins', async (t) => {
   const chrome = fakeChrome({ hasAccess: false, grantsAccess: false });
   globalThis.chrome = chrome;
   t.after(() => delete globalThis.chrome);
@@ -162,7 +160,7 @@ test('chrome: missing host access asks for it', async (t) => {
     chrome.calls.map(([name]) => name),
     ['permissions.contains', 'permissions.request'],
   );
-  assert.deepEqual(chrome.calls[1][1].origins, ['http://127.0.0.1/*', 'https://127.0.0.1/*']);
+  assert.deepEqual(chrome.calls[1][1].origins, HOST_PERMISSIONS);
 });
 
 test('chrome: openUrl opens a new tab', async (t) => {
@@ -193,7 +191,7 @@ test('firefox: the same contract over promise-based APIs', async (t) => {
     ['storage.get', 'settings'],
     ['storage.set', { settings: { filePath: 'x.md' } }],
     ['tabs.create', { url: 'https://open.test' }],
-    ['permissions.contains', { origins: ['http://127.0.0.1/*', 'https://127.0.0.1/*'] }],
+    ['permissions.contains', { origins: HOST_PERMISSIONS }],
   ]);
 });
 

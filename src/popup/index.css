@@ -19,12 +19,6 @@
   }
 }
 
-/* An author `display` (e.g. .panel { display: flex }) outranks the UA sheet's
-   [hidden] rule, so the attribute needs to win explicitly. */
-[hidden] {
-  display: none !important;
-}
-
 body {
   width: 340px;
   margin: 0;
@@ -84,10 +78,13 @@ button.icon.active {
   font-weight: 600;
 }
 
-.panel {
+.panel:not([hidden]) {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.panel {
   margin: 8px 0 0;
   padding: 10px;
   border: 1px solid var(--border);
@@ -142,36 +139,36 @@ button.icon.active {
   text-align: center;
 }
 
-#list {
+#bookmark-list {
   margin: 8px 0 0;
   padding: 0;
   list-style: none;
 }
 
-#list li {
+#bookmark-list li {
   display: flex;
   flex-direction: column;
   padding: 6px 8px;
   border-radius: 7px;
 }
 
-#list li:hover {
+#bookmark-list li:hover {
   background: color-mix(in srgb, var(--fg) 7%, transparent);
 }
 
-#list a {
+#bookmark-list a {
   color: inherit;
   font-weight: 500;
   text-decoration: none;
   overflow-wrap: anywhere;
 }
 
-#list a:hover {
+#bookmark-list a:hover {
   color: var(--accent);
   text-decoration: underline;
 }
 
-#list .host {
+#bookmark-list .host {
   color: var(--muted);
   font-size: 11px;
   overflow-wrap: anywhere;

@@ -1,0 +1,13 @@
+import { createFileStore } from '../core/obsidian-file-store.js';
+import { createChromePort } from '../platform/chrome.js';
+import { createFirefoxPort } from '../platform/firefox.js';
+import { createController } from './controller.js';
+
+function runsInFirefox() {
+  return typeof globalThis.browser !== 'undefined' && Boolean(globalThis.browser.runtime?.id);
+}
+
+createController({
+  port: runsInFirefox() ? createFirefoxPort() : createChromePort(),
+  createStore: (getSettings) => createFileStore({ getSettings }),
+}).init();

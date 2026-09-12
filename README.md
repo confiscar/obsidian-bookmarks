@@ -56,7 +56,7 @@ Click the extension icon, then **⚙** (the **←** button returns to your bookm
 | API key | the key from step 1 |
 | Bookmark file (vault-relative) | e.g. `bookmarks.md`, or `Bookmarks/Weblinks.md` |
 
-The path is resolved against your vault's real contents when you save settings. If it is spelled differently from the vault (case, `./`, doubled slashes) the extension says so, uses the correct path anyway, and the first save creates the note if it does not exist yet.
+The path is resolved against your vault's real contents when you save settings. If it is spelled differently from the vault (case, `./`, doubled slashes) the extension says so and uses the correct path anyway; a folder, or a path that escapes the vault (`/`, `..`), is refused with an explanation. The first save creates the note if it does not exist yet.
 
 **Test connection** checks that Obsidian is answering before you save anything.
 
@@ -96,29 +96,46 @@ To work without Obsidian running (or without touching your vault), start the bun
 node scripts/fake-obsidian.mjs --port=27123 --key=test-key
 ```
 
-It implements the three endpoints the extension uses, keeps the "vault" in memory, and seeds a small vault — `bookmarks.md`, plus a `Bookmarks/` folder holding `Weblinks.md` and `ReadLater.md` — so you can exercise both a good target and the folder mistake. Point the extension at it with API base `http://127.0.0.1:27123` and API key `test-key`.
+It implements the three endpoints the extension uses and keeps the "vault" in memory, seeding `bookmarks.md` plus a `Bookmarks/` folder holding `Weblinks.md` and `ReadLater.md` — so you can exercise both a good target and the folder mistake. Point the extension at it with API base `http://127.0.0.1:27123` and API key `test-key`.
+
+It mirrors the real plugin's awkward corners on purpose: a folder is listed as `{"files":[…]}` with directories suffixed `/`, and a write aimed at a folder answers exactly what Obsidian answers — `500 {"message":"File already exists.","errorCode":50001}`.
 
 ### Layout
 
 ```
 src/
-  manifest.json        MV3 manifest (Firefox-only keys stripped at build time)
-  popup.html/.css/.js  the popup; popup.js only picks a platform port and starts the core
-  core/                browser-agnostic logic — no chrome.*/browser.* anywhere
-    bookmarks.js       parse/format/normalize markdown links (pure)
-    settings.js        defaults + validation (pure)
-    obsidian-store.js  FileStore over the Local REST API (plain fetch)
-    controller.js      popup state machine + DOM rendering
-    ports.js           the two interfaces, as documentation
-  platform/            one adapter per browser, nothing else
-    chrome.js          callback APIs → promises
-    firefox.js         already promise-based, so nearly a passthrough
-test/                  node:test suites + the fake REST server
+  manifest.json           MV3 manifest (Firefox-only keys stripped at build time)
+  popup/                  the popup: entrypoint, markup, styles, and its controller
+    index.html            main view (save + list) and settings view
+    index.css
+    index.js              picks a platform port, starts the controller
+    controller.js         state machine + DOM rendering
+  core/                   browser-agnostic domain logic
+    bookmarks.js          markdown links ⇄ bookmarks, URL normalization
+    settings.js           defaults, normalization, problems
+    vault-path.js         resolves a typed path against the vault's real folders
+    obsidian-file-store.js  read/append a note over the Local REST API
+  platform/               the only browser-specific code
+    chrome.js             callback APIs → promises
+    firefox.js            already promise-based, so nearly a passthrough
+scripts/                  build + a fake Obsidian for local development
+test/                     node:test suites + the fake REST server
 ```
+
+The rule the folders encode: `core/` and `popup/` never mention `chrome.*` or `browser.*`; `platform/` never contains product logic. The popup loads an adapter and hands it to the controller, which only knows the methods below.
 
 ### Adding another browser
 
-Implement the five-method `PlatformPort` from `src/core/ports.js` (`getActiveTab`, `loadSettings`, `saveSettings`, `openUrl`, `requestHostAccess`) and select it in `src/popup.js`. The core needs no changes — it never sees a browser API, only the port and the `FileStore`.
+Implement these five methods and select the adapter in `src/popup/index.js`:
+
+| Method | Contract |
+| --- | --- |
+| `getActiveTab()` | `{ url, title }` for the tab the popup opened from, or null |
+| `loadSettings()` / `saveSettings(settings)` | persist the settings object |
+| `openUrl(url)` | open a bookmark in a new tab |
+| `requestHostAccess()` | ensure the extension may call `127.0.0.1`, prompting if needed; resolves a boolean |
+
+`test/platform-adapters.test.js` pins both adapters to that contract, so a new one can be checked the same way.
 
 ## Troubleshooting
 
