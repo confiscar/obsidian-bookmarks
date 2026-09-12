@@ -4,7 +4,7 @@ A small browser extension that keeps your bookmarks in a markdown file inside an
 
 - **★ Save bookmark** — prefills the page name, URL and folder, lets you edit all three, and writes one line into the note.
 - **Bookmark list** — your headings as folders, open by default, with **Open all** / **Close all**. Click a bookmark to open it.
-- **Favourites** — a star on every entry writes that bookmark into the note's front matter, and everything favourited is pinned to the top of the list.
+- **Pinned** — a pin on every entry writes that bookmark into the note's front matter, holding it at the top of the list.
 - **⚙ Settings** — a page of its own (back button returns to the list) for choosing the file and how to reach Obsidian.
 
 Works in Chrome (and Chromium: Edge, Brave, …) and Firefox from one codebase.
@@ -102,12 +102,12 @@ Insertion details worth knowing, because they are visible in the file:
 - New items reuse the bullet character the file already uses, `*` or `-`.
 - Headings and links inside fenced code blocks are ignored.
 
-### Favourites
+### Pinned
 
-The star at the end of each entry toggles that bookmark in the note's front matter; filled means it is in there. Favourites are **pinned to the top of the list**, above the folders, so they are reachable without opening the folder they live in:
+The pin at the end of each entry toggles that bookmark in the note's front matter; solid means it is in there, faded means it is not. Pinned bookmarks are held at the **top of the list**, above the folders, so they are reachable without opening the folder they live in:
 
 ```
-★ Favourites  2
+📌 Pinned  2
   OneMotion      onemotion.com
   Amazon         amazon.co.uk
 
@@ -115,13 +115,13 @@ The star at the end of each entry toggles that bookmark in the note's front matt
   ...
 ```
 
-The pinned rows are the same rows as the ones in the tree, so un-starring either copy removes the line and the two views can never disagree. The section only appears once something is favourited, and it folds like a folder: click **★ Favourites** to collapse it, and **Open all** / **Close all** cover it along with everything else.
+The pinned rows are the same rows as the ones in the tree, so unpinning either copy removes the line and the two views can never disagree. The section only appears once something is pinned, and it folds like a folder: click **📌 Pinned** to collapse it, and **Open all** / **Close all** cover it along with everything else.
 
-Entries are one line per favourite, in the order they were added:
+Entries are one line per pin, in the order they were added:
 
 ```md
 ---
-favourites:
+pinned:
   - '[Chord player](https://chords.test/player)'
   - '[Spotify](https://open.spotify.com/)'
 ---
@@ -129,10 +129,10 @@ favourites:
 
 Each entry is single-quoted because front matter is YAML: an unquoted `[name](url)` opens a flow sequence, so the trailing `(url)` makes the property unreadable in Obsidian.
 
-- Clicking a filled star removes that URL's line. When the last favourite goes the `favourites:` key goes with it, and if the block then holds nothing else — because the extension created it — the whole `---` block is removed too, leaving the note exactly as it was.
-- URLs are compared in normalized form, so `https://a.test` and `https://a.test/` are the same favourite, while the line that gets written keeps the spelling the note itself uses.
-- Front matter is skipped when the note is read, so a favourite never appears twice in the list.
-- Hand edits are respected: items under `favourites:` that are not links are left alone (and keep the key alive), and an inline value like `favourites: ["[…]"]` is refused with an explanation rather than rewritten. `favourites: []` is filled in as an ordinary block list.
+- Clicking a solid pin removes that URL's line. When the last pin goes the `pinned:` key goes with it, and if the block then holds nothing else — because the extension created it — the whole `---` block is removed too, leaving the note exactly as it was.
+- URLs are compared in normalized form, so `https://a.test` and `https://a.test/` are the same bookmark, while the line that gets written keeps the spelling the note itself uses.
+- Front matter is skipped when the note is read, so a pinned bookmark never appears twice in the list.
+- Hand edits are respected: items under `pinned:` that are not links are left alone (and keep the key alive), and an inline value like `pinned: ["[…]"]` is refused with an explanation rather than rewritten. `pinned: []` is filled in as an ordinary block list.
 
 ## Development
 
@@ -161,11 +161,11 @@ src/
     index.css
     index.js              picks a platform port, starts the controller
     controller.js         state machine + the save/settings flows
-    bookmark-list.js      renders the pinned favourites and the folder tree
+    bookmark-list.js      renders the pinned section and the folder tree
   core/                   browser-agnostic domain logic
     bookmarks.js          markdown links ⇄ bookmarks, URL normalization
     bookmark-tree.js      headings ⇄ folder tree, and placing a bookmark in one
-    front-matter.js       the favourites list in the note's YAML front matter
+    front-matter.js       the pinned list in the note's YAML front matter
     settings.js           defaults, normalization, problems
     vault-path.js         resolves a typed path against the vault's real folders
     obsidian-file-store.js  read/append a note over the Local REST API
@@ -209,8 +209,8 @@ Implement these five methods and select the adapter in `src/popup/index.js`:
 
 ## Limits of this version
 
-- Adds only: nothing is renamed, moved or deleted from the popup — a favourite is a front matter line, nothing more.
-- Favourites are pinned at the top but stay in their folder too — the list order inside each folder is unchanged.
+- Adds only: nothing is renamed, moved or deleted from the popup — a pin is a front matter line, nothing more.
+- Pinned bookmarks are also still in their folder; the order inside each folder is unchanged.
 - Folders come from headings; markdown stops at six levels, so a deeper path is refused rather than flattened.
 - The whole file is re-read (and every link re-parsed) on each refresh — fine for a few thousand lines.
 - No duplicate detection, and no conflict handling beyond "Obsidian is the only writer".

@@ -3,8 +3,8 @@ import { formatBookmarkLink, normalizeUrl, parseBookmarks } from './bookmarks.js
 /** @typedef {{ name: string, url: string }} Bookmark */
 
 const FENCE = '---';
-const KEY = 'favourites';
-const KEY_LINE = /^favourites\s*:\s*(.*)$/;
+const KEY = 'pinned';
+const KEY_LINE = /^pinned\s*:\s*(.*)$/;
 const LIST_ITEM = /^\s*-\s*(.+)$/;
 const EMPTY_LIST = '[]';
 
@@ -31,10 +31,10 @@ export function frontMatterRange(markdown) {
  *   inline: string | null,
  *   listLines: number[],
  *   entries: { line: number, name: string, url: string }[],
- * }} where `inline` is whatever followed `favourites:` on its own line, `listLines` is every
- * item under the key and `entries` only the ones that hold a markdown link
+ * }} where `inline` is whatever followed `pinned:` on its own line, `listLines` is every item
+ * under the key and `entries` only the ones that hold a markdown link
  */
-export function readFavourites(markdown) {
+export function readPinned(markdown) {
   const lines = String(markdown ?? '').split('\n');
   const range = frontMatterRange(markdown);
   if (!range) return { range: null, keyLine: null, inline: null, listLines: [], entries: [] };
@@ -69,8 +69,8 @@ export function readFavourites(markdown) {
   return { range, keyLine, inline, listLines, entries };
 }
 
-/** @param {string} url @returns {string} the form used to store and compare favourite URLs */
-export function favouriteKey(url) {
+/** @param {string} url @returns {string} the form used to store and compare pinned URLs */
+export function pinnedKey(url) {
   return normalizeUrl(url) ?? String(url);
 }
 
@@ -79,13 +79,13 @@ export function favouriteKey(url) {
  *
  * @param {string} markdown entire note
  * @param {Bookmark} bookmark
- * @returns {{ markdown: string, favourite: boolean }} the updated note and the state it now holds
+ * @returns {{ markdown: string, pinned: boolean }} the updated note and the state it now holds
  */
-export function toggleFavourite(markdown, bookmark) {
+export function togglePinned(markdown, bookmark) {
   const text = String(markdown ?? '');
-  const state = readFavourites(text);
-  const key = favouriteKey(bookmark.url);
-  const matches = state.entries.filter((entry) => favouriteKey(entry.url) === key);
+  const state = readPinned(text);
+  const key = pinnedKey(bookmark.url);
+  const matches = state.entries.filter((entry) => pinnedKey(entry.url) === key);
 
   if (!matches.length) {
     if (state.inline && state.inline !== EMPTY_LIST) {
@@ -93,21 +93,21 @@ export function toggleFavourite(markdown, bookmark) {
         `The “${KEY}” value in this note's front matter has to be a list on its own lines before it can be edited.`,
       );
     }
-    return { markdown: withEntry(text, state, bookmark), favourite: true };
+    return { markdown: withEntry(text, state, bookmark), pinned: true };
   }
 
   const lines = text.split('\n');
   for (const entry of [...matches].sort((a, b) => b.line - a.line)) lines.splice(entry.line, 1);
 
-  const kept = readFavourites(lines.join('\n'));
+  const kept = readPinned(lines.join('\n'));
   if (kept.keyLine !== null && !kept.listLines.length) lines.splice(kept.keyLine, 1);
 
-  return { markdown: withoutEmptiedBlock(lines), favourite: false };
+  return { markdown: withoutEmptiedBlock(lines), pinned: false };
 }
 
 /**
  * @param {string} text
- * @param {ReturnType<typeof readFavourites>} state
+ * @param {ReturnType<typeof readPinned>} state
  * @param {Bookmark} bookmark
  * @returns {string} the note with the bookmark added to the front matter list
  */
@@ -137,11 +137,11 @@ function withEntry(text, state, bookmark) {
 }
 
 /**
- * @param {string[]} lines the note, with favourite lines already gone
+ * @param {string[]} lines the note, with pinned lines already gone
  * @returns {string} the note, minus a front matter block that no longer holds anything
  */
 function withoutEmptiedBlock(lines) {
-  const { range, keyLine } = readFavourites(lines.join('\n'));
+  const { range, keyLine } = readPinned(lines.join('\n'));
   if (!range || keyLine !== null) return lines.join('\n');
 
   const body = lines.slice(range.start + 1, range.end);

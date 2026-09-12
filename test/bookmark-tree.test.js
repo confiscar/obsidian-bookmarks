@@ -94,7 +94,7 @@ test('folder ids are the path, and descendants can be listed', () => {
 test('front matter is not read as headings or bookmarks', () => {
   const note = [
     '---',
-    'favourites:',
+    'pinned:',
     "  - '[A](https://a.test/)'",
     'title: ## Nope',
     '---',

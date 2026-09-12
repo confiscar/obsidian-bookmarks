@@ -1,6 +1,6 @@
 import { normalizeUrl } from '../core/bookmarks.js';
 import { allGroupIds, groupIds, insertBookmark, parseBookmarkTree } from '../core/bookmark-tree.js';
-import { readFavourites, toggleFavourite } from '../core/front-matter.js';
+import { readPinned, togglePinned } from '../core/front-matter.js';
 import { DEFAULT_SETTINGS, findSettingsProblems, normalizeSettings } from '../core/settings.js';
 import { renderBookmarkList } from './bookmark-list.js';
 
@@ -35,8 +35,8 @@ export function createController({ port, createStore, document: doc = globalThis
   const state = {
     settings: { ...DEFAULT_SETTINGS },
     tree: parseBookmarkTree(''),
-    favourites: [],
-    favouritesOpen: true,
+    pinned: [],
+    pinnedOpen: true,
     collapsed: new Set(),
     status: null,
   };
@@ -80,13 +80,13 @@ export function createController({ port, createStore, document: doc = globalThis
       container: ui.list,
       tree: state.tree,
       collapsed: state.collapsed,
-      favourites: state.favourites,
-      favouritesOpen: state.favouritesOpen,
+      pinned: state.pinned,
+      pinnedOpen: state.pinnedOpen,
       onOpenBookmark: (url) => port.openUrl(url),
       onToggleGroup: toggleGroup,
-      onToggleFavourite: toggleFavouriteEntry,
-      onToggleFavouritesSection: () => {
-        state.favouritesOpen = !state.favouritesOpen;
+      onTogglePinned: togglePinnedEntry,
+      onTogglePinnedSection: () => {
+        state.pinnedOpen = !state.pinnedOpen;
         render();
       },
     });
@@ -124,10 +124,10 @@ export function createController({ port, createStore, document: doc = globalThis
     try {
       const markdown = await store.readText();
       state.tree = parseBookmarkTree(markdown);
-      state.favourites = readFavourites(markdown).entries.map(({ name, url }) => ({ name, url }));
+      state.pinned = readPinned(markdown).entries.map(({ name, url }) => ({ name, url }));
     } catch (error) {
       state.tree = parseBookmarkTree('');
-      state.favourites = [];
+      state.pinned = [];
       throw error;
     } finally {
       setBusy(false);
@@ -136,20 +136,14 @@ export function createController({ port, createStore, document: doc = globalThis
   }
 
   /** @param {{ name: string, url: string }} bookmark */
-  async function toggleFavouriteEntry(bookmark) {
+  async function togglePinnedEntry(bookmark) {
     setBusy(true);
     try {
-      const { markdown, favourite } = toggleFavourite(await store.readText(), bookmark);
+      const { markdown, pinned } = togglePinned(await store.readText(), bookmark);
       await store.writeText(markdown);
-      if (favourite) state.favouritesOpen = true;
+      if (pinned) state.pinnedOpen = true;
       await reloadBookmarks();
-      setStatus(
-        info(
-          favourite
-            ? `Added “${bookmark.name}” to favourites.`
-            : `Removed “${bookmark.name}” from favourites.`,
-        ),
-      );
+      setStatus(info(pinned ? `Pinned “${bookmark.name}”.` : `Unpinned “${bookmark.name}”.`));
     } catch (error) {
       setStatus(failure(error.message));
     } finally {
@@ -321,12 +315,12 @@ export function createController({ port, createStore, document: doc = globalThis
       });
       ui.expandAll.addEventListener('click', () => {
         state.collapsed.clear();
-        state.favouritesOpen = true;
+        state.pinnedOpen = true;
         render();
       });
       ui.collapseAll.addEventListener('click', () => {
         state.collapsed = new Set(allGroupIds(state.tree.groups));
-        state.favouritesOpen = false;
+        state.pinnedOpen = false;
         render();
       });
       ui.openSettings.addEventListener('click', openSettings);

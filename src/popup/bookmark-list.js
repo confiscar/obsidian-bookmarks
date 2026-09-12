@@ -1,6 +1,8 @@
-import { favouriteKey } from '../core/front-matter.js';
+import { pinnedKey } from '../core/front-matter.js';
 
 /** @typedef {{ name: string, url: string }} Bookmark */
+
+const PIN = '📌';
 
 /** @param {string} url @returns {string} the host, or '' when the URL cannot be parsed */
 function hostnameOf(url) {
@@ -20,8 +22,8 @@ function countBookmarks(group) {
 }
 
 /**
- * Renders the pinned favourites, the bookmarks that sit above any heading, then the folder tree.
- * Folders are open unless their id is in `collapsed`; nesting is drawn with the `--depth`
+ * Renders the pinned bookmarks, then the bookmarks that sit above any heading, then the folder
+ * tree. Folders are open unless their id is in `collapsed`; nesting is drawn with the `--depth`
  * custom property.
  *
  * @param {object} options
@@ -29,46 +31,46 @@ function countBookmarks(group) {
  * @param {HTMLElement} options.container the list element to fill
  * @param {import('../core/bookmark-tree.js').BookmarkTree} options.tree
  * @param {Set<string>} options.collapsed ids of the folders the user closed
- * @param {Bookmark[]} options.favourites entries read from the note's front matter, in file order
- * @param {boolean} options.favouritesOpen whether the pinned section is expanded
+ * @param {Bookmark[]} options.pinned entries read from the note's front matter, in file order
+ * @param {boolean} options.pinnedOpen whether the pinned section is expanded
  * @param {(url: string) => void} options.onOpenBookmark
  * @param {(group: import('../core/bookmark-tree.js').Group) => void} options.onToggleGroup
- * @param {(bookmark: Bookmark) => void} options.onToggleFavourite
- * @param {() => void} options.onToggleFavouritesSection
+ * @param {(bookmark: Bookmark) => void} options.onTogglePinned
+ * @param {() => void} options.onTogglePinnedSection
  */
 export function renderBookmarkList({
   document: doc,
   container,
   tree,
   collapsed,
-  favourites,
-  favouritesOpen,
+  pinned,
+  pinnedOpen,
   onOpenBookmark,
   onToggleGroup,
-  onToggleFavourite,
-  onToggleFavouritesSection,
+  onTogglePinned,
+  onTogglePinnedSection,
 }) {
-  const favouriteKeys = new Set(favourites.map((bookmark) => favouriteKey(bookmark.url)));
+  const pinnedKeys = new Set(pinned.map((bookmark) => pinnedKey(bookmark.url)));
   const rows = [];
 
-  if (favourites.length) rows.push(...favouritesRows());
+  if (pinned.length) rows.push(...pinnedRows());
   for (const bookmark of tree.loose) rows.push(bookmarkRow(bookmark, 0));
   for (const group of tree.groups) rows.push(...groupRows(group, 0));
 
   container.replaceChildren(...rows);
 
-  function favouritesRows() {
+  function pinnedRows() {
     const header = sectionRow({
-      name: '★ Favourites',
-      count: favourites.length,
+      name: `${PIN} Pinned`,
+      count: pinned.length,
       depth: 0,
-      className: 'group favourites',
-      open: favouritesOpen,
-      onToggle: onToggleFavouritesSection,
+      className: 'group pinned',
+      open: pinnedOpen,
+      onToggle: onTogglePinnedSection,
     });
 
-    if (!favouritesOpen) return [header];
-    return [header, ...favourites.map((bookmark) => bookmarkRow(bookmark, 1))];
+    if (!pinnedOpen) return [header];
+    return [header, ...pinned.map((bookmark) => bookmarkRow(bookmark, 1))];
   }
 
   function groupRows(group, depth) {
@@ -143,16 +145,16 @@ export function renderBookmarkList({
     text.className = 'bookmark-text';
     text.append(link, host);
 
-    const isFavourite = favouriteKeys.has(favouriteKey(bookmark.url));
-    const star = doc.createElement('button');
-    star.type = 'button';
-    star.className = 'favourite';
-    star.textContent = isFavourite ? '★' : '☆';
-    star.title = isFavourite ? 'Remove from favourites' : 'Add to favourites';
-    star.setAttribute('aria-pressed', String(isFavourite));
-    star.addEventListener('click', () => onToggleFavourite(bookmark));
+    const isPinned = pinnedKeys.has(pinnedKey(bookmark.url));
+    const pin = doc.createElement('button');
+    pin.type = 'button';
+    pin.className = 'pin';
+    pin.textContent = PIN;
+    pin.title = isPinned ? 'Unpin this bookmark' : 'Pin this bookmark';
+    pin.setAttribute('aria-pressed', String(isPinned));
+    pin.addEventListener('click', () => onTogglePinned(bookmark));
 
-    row.append(text, star);
+    row.append(text, pin);
     return row;
   }
 }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { favouriteKey, frontMatterRange, readFavourites, toggleFavourite } from '../src/core/front-matter.js';
+import { frontMatterRange, pinnedKey, readPinned, togglePinned } from '../src/core/front-matter.js';
 
 const NOTE = ['## Music', '', '* [OneMotion](https://www.onemotion.com/chord-player/)', ''].join('\n');
 const chord = { name: 'Chord player', url: 'https://chords.test/player' };
@@ -16,99 +16,99 @@ test('front matter counts only when the note opens with it', () => {
   assert.equal(frontMatterRange(NOTE), null);
 });
 
-test('the first favourite brings its own front matter block', () => {
-  const result = toggleFavourite(NOTE, chord);
+test('the first pin brings its own front matter block', () => {
+  const result = togglePinned(NOTE, chord);
 
-  assert.equal(result.favourite, true);
+  assert.equal(result.pinned, true);
   assert.equal(
     result.markdown,
-    lines('---', 'favourites:', entry, '---', '', ...NOTE.split('\n')),
+    lines('---', 'pinned:', entry, '---', '', ...NOTE.split('\n')),
   );
 });
 
 test('clicking again removes the block it created, leaving the note as it was', () => {
-  const added = toggleFavourite(NOTE, chord).markdown;
-  const removed = toggleFavourite(added, chord);
+  const added = togglePinned(NOTE, chord).markdown;
+  const removed = togglePinned(added, chord);
 
-  assert.equal(removed.favourite, false);
+  assert.equal(removed.pinned, false);
   assert.equal(removed.markdown, NOTE);
-  assert.deepEqual(readFavourites(removed.markdown).entries, []);
+  assert.deepEqual(readPinned(removed.markdown).entries, []);
 });
 
 test('existing front matter keeps its other keys, in place', () => {
   const note = lines('---', 'title: Weblinks', 'tags:', '  - links', '---', '', '## Music', '');
-  const updated = toggleFavourite(note, chord).markdown;
+  const updated = togglePinned(note, chord).markdown;
 
   assert.equal(
     updated,
-    lines('---', 'title: Weblinks', 'tags:', '  - links', 'favourites:', entry, '---', '', '## Music', ''),
+    lines('---', 'title: Weblinks', 'tags:', '  - links', 'pinned:', entry, '---', '', '## Music', ''),
   );
 });
 
-test('favourites accumulate in the order they were added', () => {
+test('pins accumulate in the order they were added', () => {
   const spotify = { name: 'Spotify', url: 'https://open.spotify.com/' };
-  const once = toggleFavourite(NOTE, chord).markdown;
-  const twice = toggleFavourite(once, spotify).markdown;
+  const once = togglePinned(NOTE, chord).markdown;
+  const twice = togglePinned(once, spotify).markdown;
 
-  assert.deepEqual(readFavourites(twice).entries.map((e) => e.name), ['Chord player', 'Spotify']);
+  assert.deepEqual(readPinned(twice).entries.map((e) => e.name), ['Chord player', 'Spotify']);
   assert.equal(
     twice,
-    lines('---', 'favourites:', entry, "  - '[Spotify](https://open.spotify.com/)'", '---', '', ...NOTE.split('\n')),
+    lines('---', 'pinned:', entry, "  - '[Spotify](https://open.spotify.com/)'", '---', '', ...NOTE.split('\n')),
   );
 });
 
-test('removing one favourite leaves the others and the key behind', () => {
+test('unpinning one leaves the others and the key behind', () => {
   const spotify = { name: 'Spotify', url: 'https://open.spotify.com/' };
-  const both = toggleFavourite(toggleFavourite(NOTE, chord).markdown, spotify).markdown;
-  const without = toggleFavourite(both, chord);
+  const both = togglePinned(togglePinned(NOTE, chord).markdown, spotify).markdown;
+  const without = togglePinned(both, chord);
 
-  assert.equal(without.favourite, false);
-  assert.deepEqual(readFavourites(without.markdown).entries.map((e) => e.name), ['Spotify']);
-  assert.ok(without.markdown.includes('favourites:'));
+  assert.equal(without.pinned, false);
+  assert.deepEqual(readPinned(without.markdown).entries.map((e) => e.name), ['Spotify']);
+  assert.ok(without.markdown.includes('pinned:'));
 });
 
-test('other front matter survives the last favourite leaving', () => {
+test('other front matter survives the last pin leaving', () => {
   const note = lines('---', 'title: Weblinks', '---', '', '## Music', '');
-  const added = toggleFavourite(note, chord).markdown;
-  const removed = toggleFavourite(added, chord).markdown;
+  const added = togglePinned(note, chord).markdown;
+  const removed = togglePinned(added, chord).markdown;
 
   assert.equal(removed, note);
 });
 
-test('a favourite is stored as the note spells its URL, and matched by its normalized form', () => {
+test('a pin is stored as the note spells its URL, and matched by its normalized form', () => {
   const bare = { name: 'A', url: 'https://a.test' };
-  const added = toggleFavourite(NOTE, bare).markdown;
+  const added = togglePinned(NOTE, bare).markdown;
 
-  assert.equal(readFavourites(added).entries[0].url, 'https://a.test');
-  assert.equal(favouriteKey('https://a.test'), 'https://a.test/');
-  assert.equal(toggleFavourite(added, { name: 'A', url: 'https://a.test/' }).favourite, false);
+  assert.equal(readPinned(added).entries[0].url, 'https://a.test');
+  assert.equal(pinnedKey('https://a.test'), 'https://a.test/');
+  assert.equal(togglePinned(added, { name: 'A', url: 'https://a.test/' }).pinned, false);
 });
 
 test('an empty inline list is rewritten into a list on its own lines', () => {
-  const note = lines('---', 'favourites: []', '---', '', '## Music', '');
-  const updated = toggleFavourite(note, chord).markdown;
+  const note = lines('---', 'pinned: []', '---', '', '## Music', '');
+  const updated = togglePinned(note, chord).markdown;
 
-  assert.equal(updated, lines('---', 'favourites:', entry, '---', '', '## Music', ''));
+  assert.equal(updated, lines('---', 'pinned:', entry, '---', '', '## Music', ''));
 });
 
 test('a hand-written inline list is refused rather than mangled', () => {
-  const note = lines('---', 'favourites: ["[A](https://a.test/)"]', '---', '', '## Music', '');
+  const note = lines('---', 'pinned: ["[A](https://a.test/)"]', '---', '', '## Music', '');
 
-  assert.throws(() => toggleFavourite(note, chord), /list on its own lines/);
+  assert.throws(() => togglePinned(note, chord), /list on its own lines/);
 });
 
 test('items that are not links are left alone', () => {
-  const note = lines('---', 'favourites:', "  - 'just a note'", "  - '[Real](https://real.test/)'", '---', '');
-  const removed = toggleFavourite(note, { name: 'Real', url: 'https://real.test/' }).markdown;
+  const note = lines('---', 'pinned:', "  - 'just a note'", "  - '[Real](https://real.test/)'", '---', '');
+  const removed = togglePinned(note, { name: 'Real', url: 'https://real.test/' }).markdown;
 
-  assert.equal(removed, lines('---', 'favourites:', "  - 'just a note'", '---', ''));
+  assert.equal(removed, lines('---', 'pinned:', "  - 'just a note'", '---', ''));
 });
 
 test('names with quotes and apostrophes survive the file', () => {
   const awkward = { name: `Dave's "best" song`, url: 'https://music.test/a b' };
-  const added = toggleFavourite(NOTE, awkward).markdown;
+  const added = togglePinned(NOTE, awkward).markdown;
   const line = added.split('\n')[2];
 
   assert.equal(line, "  - '[Dave''s \"best\" song](https://music.test/a%20b)'");
-  assert.deepEqual(readFavourites(added).entries.map((e) => e.url), ['https://music.test/a%20b']);
+  assert.deepEqual(readPinned(added).entries.map((e) => e.url), ['https://music.test/a%20b']);
 });

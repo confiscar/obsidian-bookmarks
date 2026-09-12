@@ -188,7 +188,7 @@ button.icon.active {
   align-items: center;
 }
 
-#bookmark-list li.favourites {
+#bookmark-list li.pinned {
   flex-direction: row;
   gap: 6px;
   align-items: baseline;
@@ -204,17 +204,23 @@ button.icon.active {
   min-width: 0;
 }
 
-.favourite {
+.pin {
   padding: 0 2px;
   border: 0;
   background: none;
-  color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1;
+  opacity: 0.35;
+  filter: grayscale(1);
 }
 
-.favourite[aria-pressed='true'] {
-  color: #e0a000;
+.pin:hover {
+  opacity: 0.7;
+}
+
+.pin[aria-pressed='true'] {
+  opacity: 1;
+  filter: none;
 }
 
 .group-toggle {
