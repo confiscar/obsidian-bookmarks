@@ -472,6 +472,10 @@ export function createController({ port, createStore, document: doc = globalThis
         return;
       }
 
+      // Opening the popup shows the pins and nothing else; folders are opened by hand, or all
+      // at once with Open all. Folders that appear later — from a save, say — open as they did.
+      state.collapsed = new Set(allGroupIds(state.tree.groups));
+
       const problems = findSettingsProblems(state.settings);
       if (problems.length) setStatus(info(problems.join(' ')));
       else render();

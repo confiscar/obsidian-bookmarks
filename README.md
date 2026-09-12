@@ -3,7 +3,7 @@
 A small browser extension that keeps your bookmarks in a markdown file inside an Obsidian vault.
 
 - **★ Save bookmark** — prefills the page name, URL and folder, lets you edit all three, and writes one line into the note.
-- **Bookmark list** — your headings as folders, open by default, with **Open all** / **Close all**. Click a bookmark to open it.
+- **Bookmark list** — your headings as folders, closed by default, with **Open all** / **Close all**. Click a bookmark to open it.
 - **Pinned** — a pin on every entry writes that bookmark into the note's front matter, holding it at the top of the list.
 - **Edit and delete** — every entry also carries a pencil and a waste basket: edit rewrites the name, URL and folder, delete removes the line.
 - **⚙ Settings** — a page of its own (back button returns to the list) for choosing the file and how to reach Obsidian.
@@ -89,7 +89,9 @@ Every `[name](http://…)` or `[name](https://…)` link in the file: images (`!
 
 ### Folders
 
-Headings are folders, nested by their level and shown as their path — `Music/Production`. Every folder starts open, and **Open all** / **Close all** act on the whole tree; opening a folder opens everything inside it too, which is why a collapsed root comes back with its subfolders expanded.
+Headings are folders, nested by their level and shown as their path — `Music/Production`. Each header carries the number of bookmarks it holds, subfolders included, so a closed folder still says how much is inside it.
+
+Opening the popup opens **Pinned and nothing else**; every folder is closed until you open it, or press **Open all**. **Open all** / **Close all** act on the whole tree, and opening a folder opens everything inside it too, which is why a closed root comes back with its subfolders expanded. A folder that appears *while you are looking* — one a save just created — arrives open, so you can see what landed in it.
 
 The **root level is the level your file opens with**. A note that starts at `##` has `##` top-level folders and `###` children; a note that opens with a title (`# My links`) treats that title as the top-level folder with the `##` sections inside it. New top-level folders are written at that same level.
 
@@ -116,7 +118,7 @@ Pinned  2
   ...
 ```
 
-The pinned rows are the same rows as the ones in the tree, so unpinning either copy removes the line and the two views can never disagree. The section only appears once something is pinned, and it folds like a folder: click **Pinned** to collapse it, and **Open all** / **Close all** cover it along with everything else.
+The pinned rows are the same rows as the ones in the tree, so unpinning either copy removes the line and the two views can never disagree. The section appears once something is pinned and is **open by default** — it is the one thing the popup unfolds for you — and it folds like a folder: click **Pinned** to collapse it, and **Open all** / **Close all** cover it along with everything else.
 
 The pin is an inline SVG rather than an emoji, so it takes the theme's colour and needs no font: outline when unpinned, filled when pinned. It is the `pin`/`pin-fill` pair from [Bootstrap Icons](https://github.com/twbs/icons) (MIT) — see [THIRD-PARTY.md](THIRD-PARTY.md).
 
