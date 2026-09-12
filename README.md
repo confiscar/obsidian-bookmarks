@@ -4,7 +4,7 @@ A small browser extension that keeps your bookmarks in a markdown file inside an
 
 - **★ Save bookmark** — prefills the page name, URL and folder, lets you edit all three, and writes one line into the note.
 - **Bookmark list** — your headings as folders, open by default, with **Open all** / **Close all**. Click a bookmark to open it.
-- **Favourites** — a star on every entry adds that bookmark to the note's front matter, or takes it out again.
+- **Favourites** — a star on every entry writes that bookmark into the note's front matter, and everything favourited is pinned to the top of the list.
 - **⚙ Settings** — a page of its own (back button returns to the list) for choosing the file and how to reach Obsidian.
 
 Works in Chrome (and Chromium: Edge, Brave, …) and Firefox from one codebase.
@@ -104,7 +104,20 @@ Insertion details worth knowing, because they are visible in the file:
 
 ### Favourites
 
-The star at the end of each entry toggles that bookmark in the note's front matter; filled means it is in there. Entries are one line per favourite, in the order they were added:
+The star at the end of each entry toggles that bookmark in the note's front matter; filled means it is in there. Favourites are **pinned to the top of the list**, above the folders, so they are reachable without opening the folder they live in:
+
+```
+★ Favourites  2
+  OneMotion      onemotion.com
+  Amazon         amazon.co.uk
+
+  Development    2
+  ...
+```
+
+The pinned rows are the same rows as the ones in the tree, so un-starring either copy removes the line and the two views can never disagree. The section only appears once something is favourited, and it folds like a folder: click **★ Favourites** to collapse it, and **Open all** / **Close all** cover it along with everything else.
+
+Entries are one line per favourite, in the order they were added:
 
 ```md
 ---
@@ -148,7 +161,7 @@ src/
     index.css
     index.js              picks a platform port, starts the controller
     controller.js         state machine + the save/settings flows
-    bookmark-list.js      renders the folder tree
+    bookmark-list.js      renders the pinned favourites and the folder tree
   core/                   browser-agnostic domain logic
     bookmarks.js          markdown links ⇄ bookmarks, URL normalization
     bookmark-tree.js      headings ⇄ folder tree, and placing a bookmark in one
@@ -197,7 +210,7 @@ Implement these five methods and select the adapter in `src/popup/index.js`:
 ## Limits of this version
 
 - Adds only: nothing is renamed, moved or deleted from the popup — a favourite is a front matter line, nothing more.
-- Favourites are marked, not sorted or filtered: the list keeps its file order.
+- Favourites are pinned at the top but stay in their folder too — the list order inside each folder is unchanged.
 - Folders come from headings; markdown stops at six levels, so a deeper path is refused rather than flattened.
 - The whole file is re-read (and every link re-parsed) on each refresh — fine for a few thousand lines.
 - No duplicate detection, and no conflict handling beyond "Obsidian is the only writer".

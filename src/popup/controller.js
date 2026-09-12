@@ -1,6 +1,6 @@
 import { normalizeUrl } from '../core/bookmarks.js';
 import { allGroupIds, groupIds, insertBookmark, parseBookmarkTree } from '../core/bookmark-tree.js';
-import { favouriteKey, readFavourites, toggleFavourite } from '../core/front-matter.js';
+import { readFavourites, toggleFavourite } from '../core/front-matter.js';
 import { DEFAULT_SETTINGS, findSettingsProblems, normalizeSettings } from '../core/settings.js';
 import { renderBookmarkList } from './bookmark-list.js';
 
@@ -35,7 +35,8 @@ export function createController({ port, createStore, document: doc = globalThis
   const state = {
     settings: { ...DEFAULT_SETTINGS },
     tree: parseBookmarkTree(''),
-    favourites: new Set(),
+    favourites: [],
+    favouritesOpen: true,
     collapsed: new Set(),
     status: null,
   };
@@ -80,9 +81,14 @@ export function createController({ port, createStore, document: doc = globalThis
       tree: state.tree,
       collapsed: state.collapsed,
       favourites: state.favourites,
+      favouritesOpen: state.favouritesOpen,
       onOpenBookmark: (url) => port.openUrl(url),
       onToggleGroup: toggleGroup,
       onToggleFavourite: toggleFavouriteEntry,
+      onToggleFavouritesSection: () => {
+        state.favouritesOpen = !state.favouritesOpen;
+        render();
+      },
     });
 
     const isEmpty = !state.tree.loose.length && !state.tree.groups.length;
@@ -118,20 +124,15 @@ export function createController({ port, createStore, document: doc = globalThis
     try {
       const markdown = await store.readText();
       state.tree = parseBookmarkTree(markdown);
-      state.favourites = favouriteKeys(markdown);
+      state.favourites = readFavourites(markdown).entries.map(({ name, url }) => ({ name, url }));
     } catch (error) {
       state.tree = parseBookmarkTree('');
-      state.favourites = new Set();
+      state.favourites = [];
       throw error;
     } finally {
       setBusy(false);
       render();
     }
-  }
-
-  /** @param {string} markdown @returns {Set<string>} */
-  function favouriteKeys(markdown) {
-    return new Set(readFavourites(markdown).entries.map((entry) => favouriteKey(entry.url)));
   }
 
   /** @param {{ name: string, url: string }} bookmark */
@@ -140,6 +141,7 @@ export function createController({ port, createStore, document: doc = globalThis
     try {
       const { markdown, favourite } = toggleFavourite(await store.readText(), bookmark);
       await store.writeText(markdown);
+      if (favourite) state.favouritesOpen = true;
       await reloadBookmarks();
       setStatus(
         info(
@@ -319,10 +321,12 @@ export function createController({ port, createStore, document: doc = globalThis
       });
       ui.expandAll.addEventListener('click', () => {
         state.collapsed.clear();
+        state.favouritesOpen = true;
         render();
       });
       ui.collapseAll.addEventListener('click', () => {
         state.collapsed = new Set(allGroupIds(state.tree.groups));
+        state.favouritesOpen = false;
         render();
       });
       ui.openSettings.addEventListener('click', openSettings);

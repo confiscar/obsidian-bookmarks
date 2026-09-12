@@ -188,6 +188,15 @@ button.icon.active {
   align-items: center;
 }
 
+#bookmark-list li.favourites {
+  flex-direction: row;
+  gap: 6px;
+  align-items: baseline;
+  margin: 0 0 4px;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg);
+}
+
 .bookmark-text {
   display: flex;
   flex: 1;
