@@ -54,9 +54,11 @@ Click the extension icon, then **⚙** (the **←** button returns to your bookm
 | --- | --- |
 | Obsidian API base | `http://127.0.0.1:27123` |
 | API key | the key from step 1 |
-| Bookmark file (vault-relative) | e.g. `bookmarks.md`, or `Notes/bookmarks.md` |
+| Bookmark file (vault-relative) | e.g. `bookmarks.md`, or `Bookmarks/Weblinks.md` |
 
-The file is created on the first save if it does not exist. **Test connection** checks that Obsidian is answering before you save anything.
+The path is resolved against your vault's real contents when you save settings. If it is spelled differently from the vault (case, `./`, doubled slashes) the extension says so, uses the correct path anyway, and the first save creates the note if it does not exist yet.
+
+**Test connection** checks that Obsidian is answering before you save anything.
 
 On Firefox, host permissions are opt-in: if the list stays empty, click **Request local access** and accept the prompt (it can also be granted later in `about:addons` → Permissions → *Access your data for 127.0.0.1*).
 
@@ -126,9 +128,9 @@ Implement the five-method `PlatformPort` from `src/core/ports.js` (`getActiveTab
 
 **Firefox: the list never loads** — the host permission was not granted; use **Request local access** or check `about:addons` → Permissions.
 
-**Nothing is written to the vault** — the file path is relative to the vault root (no leading `/`) and must end in `.md` to show up as a note in Obsidian. It must be a **note, not a folder**: pointing it at a folder (easy to do when your vault has a `Bookmarks/` folder) makes Obsidian refuse the write with `File already exists.`, which the extension reports when you save settings.
+**Nothing is written to the vault** — the file path is relative to the vault root (no leading `/`) and must end in `.md` to show up as a note in Obsidian. It must be a **note, not a folder**: pointing it at a folder (easy to do when your vault has a `Bookmarks/` folder) is reported when you save settings, and nothing is written.
 
-**A write still fails** — the extension now includes Obsidian's own explanation and error code in the message. Obsidian logs the full stack for every 500 it returns: `Cmd+Opt+I` in Obsidian → Console.
+**"File already exists." from Obsidian** — the configured path is not the one Obsidian's index has, so the write looks up nothing and then collides with the file that is really there. Reads still work, because they go through the filesystem (case-insensitive on macOS/Windows) while Obsidian's index is case-sensitive. The extension resolves the path against your vault's listings before every read and write and reports the difference when you save settings — e.g. *Your vault has "Bookmarks/Weblinks.md", not "bookmarks/weblinks.md"*. If a save still fails, Obsidian logs the full stack for every 500 it returns: `Cmd+Opt+I` in Obsidian → Console.
 
 **A different machine or port** — the manifest only allows `http://127.0.0.1/*` and `https://127.0.0.1/*`. Anything else needs editing `host_permissions` in `src/manifest.json` and rebuilding.
 
