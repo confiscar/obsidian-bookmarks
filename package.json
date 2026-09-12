@@ -1,0 +1,11 @@
+{
+  "name": "obsidian-bookmarks",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser extension that saves pages into a markdown file in an Obsidian vault.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test test/*.test.js"
+  }
+}

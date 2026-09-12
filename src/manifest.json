@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Obsidian bookmarks",
+  "version": "0.1.0",
+  "description": "Save the current page into a markdown file in your Obsidian vault, and browse the bookmarks already in it.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Obsidian bookmarks"
+  },
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": ["http://127.0.0.1/*", "https://127.0.0.1/*"],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "obsidian-bookmarks@local",
+      "strict_min_version": "128.0"
+    }
+  }
+}

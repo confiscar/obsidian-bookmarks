@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Obsidian bookmarks</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <button id="star" type="button" class="primary" aria-expanded="false">
+        ★ Save bookmark
+      </button>
+      <button id="settings-toggle" type="button" class="icon" title="Settings" aria-label="Settings">
+        ⚙
+      </button>
+    </header>
+
+    <form id="save-form" class="panel" hidden>
+      <label for="name">Name</label>
+      <input id="name" autocomplete="off" placeholder="Bookmark name" />
+      <label for="url">URL</label>
+      <input id="url" autocomplete="off" spellcheck="false" inputmode="url" placeholder="https://example.com" />
+      <div class="row">
+        <button id="save" type="submit" class="primary">Save</button>
+        <button id="save-cancel" type="button">Cancel</button>
+      </div>
+    </form>
+
+    <form id="settings-form" class="panel" hidden>
+      <label for="api-base">Obsidian API base</label>
+      <input id="api-base" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:27123" />
+      <label for="api-key">API key</label>
+      <input id="api-key" type="password" autocomplete="off" />
+      <label for="file-path">Bookmark file (vault-relative)</label>
+      <input id="file-path" autocomplete="off" spellcheck="false" placeholder="bookmarks.md" />
+      <div class="row">
+        <button id="settings-save" type="submit" class="primary">Save settings</button>
+        <button id="settings-cancel" type="button">Cancel</button>
+      </div>
+      <div class="row">
+        <button id="test-connection" type="button">Test connection</button>
+        <button id="grant-access" type="button">Request local access</button>
+      </div>
+    </form>
+
+    <p id="status" role="status" hidden></p>
+    <p id="empty" class="empty" hidden>No bookmarks found yet.</p>
+    <ul id="list"></ul>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
