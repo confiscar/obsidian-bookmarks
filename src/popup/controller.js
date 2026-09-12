@@ -118,7 +118,6 @@ export function createController({ port, createStore, document: doc = globalThis
     const readLaterTitle = showingReadLater ? 'Back to bookmarks' : 'Read later';
 
     ui.readLaterButton.hidden = !readLater;
-    ui.readLaterButton.classList.toggle('active', showingReadLater);
     ui.readLaterView.hidden = !readLater;
     ui.readLaterView.classList.toggle('active', showingReadLater);
     ui.readLaterView.setAttribute('aria-pressed', String(showingReadLater));
