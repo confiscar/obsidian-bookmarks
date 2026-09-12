@@ -6,44 +6,53 @@ import { createFirefoxPort } from '../src/platform/firefox.js';
 
 const HOST_PERMISSIONS = ['http://127.0.0.1/*', 'https://127.0.0.1/*'];
 
-function fakeChrome({ tabs = [{ url: 'https://x.test', title: 'X' }], stored = {}, hasAccess = true, grantsAccess = true } = {}) {
+/**
+ * @param {object} [options]
+ * @param {string} [options.fails] message a `tabs.query` call should reject with
+ */
+function fakeChrome({ tabs = [{ url: 'https://x.test', title: 'X' }], stored = {}, hasAccess = true, grantsAccess = true, fails } = {}) {
   const calls = [];
   return {
     calls,
     runtime: {
-      lastError: null,
       getManifest: () => ({ host_permissions: HOST_PERMISSIONS }),
+      getURL: (path) => {
+        calls.push(['runtime.getURL', path]);
+        // Chrome concatenates rather than resolving, so a leading slash would be doubled.
+        return `chrome-extension://fakeid/${path}`;
+      },
     },
     tabs: {
-      query(options, callback) {
+      async query(options) {
         calls.push(['tabs.query', options]);
-        callback(tabs);
+        if (fails) throw new Error(fails);
+        return tabs;
       },
-      create(props, callback) {
+      async create(props) {
         calls.push(['tabs.create', props]);
-        callback({ id: 7 });
+        return { id: 7 };
       },
     },
     storage: {
       local: {
-        get(key, callback) {
+        async get(key) {
           calls.push(['storage.get', key]);
-          callback(stored);
+          return { [key]: stored[key] };
         },
-        set(value, callback) {
+        async set(value) {
           calls.push(['storage.set', value]);
-          callback();
+          Object.assign(stored, value);
         },
       },
     },
     permissions: {
-      contains(permissions, callback) {
+      async contains(permissions) {
         calls.push(['permissions.contains', permissions]);
-        callback(hasAccess);
+        return hasAccess;
       },
-      request(permissions, callback) {
+      async request(permissions) {
         calls.push(['permissions.request', permissions]);
-        callback(grantsAccess);
+        return grantsAccess;
       },
     },
   };
@@ -51,8 +60,10 @@ function fakeChrome({ tabs = [{ url: 'https://x.test', title: 'X' }], stored = {
 
 function fakeBrowser({ tabs = [{ url: 'https://y.test', title: 'Y' }], stored = {}, hasAccess = true, grantsAccess = true } = {}) {
   const calls = [];
+  const data = { ...stored };
   return {
     calls,
+    data,
     runtime: { getManifest: () => ({ host_permissions: HOST_PERMISSIONS }) },
     tabs: {
       async query(options) {
@@ -68,10 +79,11 @@ function fakeBrowser({ tabs = [{ url: 'https://y.test', title: 'Y' }], stored = 
       local: {
         async get(key) {
           calls.push(['storage.get', key]);
-          return stored;
+          return { [key]: data[key] };
         },
         async set(value) {
           calls.push(['storage.set', value]);
+          Object.assign(data, value);
         },
       },
     },
@@ -106,14 +118,8 @@ test('chrome: no active tab is null, not a crash', async (t) => {
   assert.equal(await createChromePort().getActiveTab(), null);
 });
 
-test('chrome: runtime.lastError becomes a rejection', async (t) => {
-  const chrome = fakeChrome();
-  chrome.tabs.query = (options, callback) => {
-    chrome.runtime.lastError = { message: 'Tabs cannot be queried right now' };
-    callback([]);
-    chrome.runtime.lastError = null;
-  };
-  globalThis.chrome = chrome;
+test('chrome: a failed call rejects', async (t) => {
+  globalThis.chrome = fakeChrome({ fails: 'Tabs cannot be queried right now' });
   t.after(() => delete globalThis.chrome);
 
   await assert.rejects(() => createChromePort().getActiveTab(), /cannot be queried/);
@@ -200,4 +206,87 @@ test('firefox: a declined host access prompt is reported as false', async (t) =>
   t.after(() => delete globalThis.browser);
 
   assert.equal(await createFirefoxPort().requestHostAccess(), false);
+});
+
+test('chrome: a favicon request is a URL into the browser cache, not a network call', async (t) => {
+  const chrome = fakeChrome();
+  globalThis.chrome = chrome;
+  t.after(() => delete globalThis.chrome);
+
+  const icon = await createChromePort().faviconUrl('https://a.test/deep/page');
+
+  assert.equal(icon, 'chrome-extension://fakeid/_favicon/?pageUrl=https%3A%2F%2Fa.test%2Fdeep%2Fpage&size=32');
+  assert.deepEqual(chrome.calls, [['runtime.getURL', '_favicon/']]);
+});
+
+test('chrome: nothing needs capturing, so it writes no cache', async (t) => {
+  const chrome = fakeChrome();
+  globalThis.chrome = chrome;
+  t.after(() => delete globalThis.chrome);
+
+  await createChromePort().rememberFavicons();
+
+  assert.deepEqual(chrome.calls, []);
+});
+
+test('firefox: an icon is only known once a page has been seen', async (t) => {
+  const browser = fakeBrowser();
+  globalThis.browser = browser;
+  t.after(() => delete globalThis.browser);
+
+  const port = createFirefoxPort();
+  assert.equal(await port.faviconUrl('https://a.test/'), null);
+
+  browser.data.tabs = [];
+  await port.rememberFavicons();
+  assert.equal(await port.faviconUrl('https://a.test/'), null);
+});
+
+test('firefox: the icon of the tab the popup opened from is captured by site', async (t) => {
+  const browser = fakeBrowser({
+    tabs: [{ url: 'https://a.test/deep/page', title: 'A', favIconUrl: 'data:image/png;base64,AAAA' }],
+  });
+  globalThis.browser = browser;
+  t.after(() => delete globalThis.browser);
+
+  const port = createFirefoxPort();
+  await port.rememberFavicons();
+
+  assert.equal(await port.faviconUrl('https://a.test/other/page'), 'data:image/png;base64,AAAA');
+  assert.equal(await port.faviconUrl('https://other.test/'), null);
+  assert.deepEqual(browser.data.favicons, { 'https://a.test': 'data:image/png;base64,AAAA' });
+});
+
+test('firefox: an icon URL that would need the page is not cached', async (t) => {
+  const browser = fakeBrowser({
+    tabs: [{ url: 'https://a.test/', title: 'A', favIconUrl: 'https://a.test/favicon.ico' }],
+  });
+  globalThis.browser = browser;
+  t.after(() => delete globalThis.browser);
+
+  const port = createFirefoxPort();
+  await port.rememberFavicons();
+
+  assert.equal(await port.faviconUrl('https://a.test/'), null);
+  assert.equal(browser.data.favicons, undefined);
+});
+
+test('firefox: the icon cache is capped, oldest first', async (t) => {
+  const browser = fakeBrowser({
+    tabs: [{ url: 'https://c.test/', title: 'C', favIconUrl: 'data:image/png;base64,CCCC' }],
+    stored: {
+      favicons: {
+        'https://a.test': 'data:image/png;base64,AAAA',
+        'https://b.test': 'data:image/png;base64,BBBB',
+      },
+    },
+  });
+  globalThis.browser = browser;
+  t.after(() => delete globalThis.browser);
+
+  const port = createFirefoxPort({ faviconLimit: 2 });
+  await port.rememberFavicons();
+
+  assert.deepEqual(Object.keys(browser.data.favicons), ['https://b.test', 'https://c.test']);
+  assert.equal(await port.faviconUrl('https://a.test/'), null);
 });

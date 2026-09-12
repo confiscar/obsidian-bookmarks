@@ -62,6 +62,21 @@ export function urlKey(url) {
 }
 
 /**
+ * Favicons belong to a site, not a page, so an icon cached for one page of a site answers for
+ * the rest of it.
+ *
+ * @param {string} url
+ * @returns {string} the site a URL belongs to, or the URL itself when it does not parse
+ */
+export function siteKey(url) {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return String(url);
+  }
+}
+
+/**
  * @param {string} input whatever the user typed, with or without a scheme
  * @returns {string | null} canonical http(s) URL, or null when the input is not one
  */

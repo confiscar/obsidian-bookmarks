@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { escapeName, formatBookmark, normalizeUrl, parseBookmarks } from '../src/core/bookmarks.js';
+import { escapeName, formatBookmark, normalizeUrl, parseBookmarks, siteKey } from '../src/core/bookmarks.js';
 
 test('parseBookmarks pulls links out in file order', () => {
   const markdown = [
@@ -65,6 +65,13 @@ test('formatting then parsing round-trips a bookmark, with the URL percent-encod
   assert.deepEqual(parseBookmarks(line), [
     { name: 'A ] tricky (one)', url: 'https://example.com/a_%28b%29' },
   ]);
+});
+
+test('siteKey answers for a whole site, not a single page', () => {
+  assert.equal(siteKey('https://a.test/deep/page?x=1'), 'https://a.test');
+  assert.equal(siteKey('https://a.test/'), 'https://a.test');
+  assert.equal(siteKey('http://a.test/'), 'http://a.test');
+  assert.equal(siteKey('not a url'), 'not a url');
 });
 
 test('normalizeUrl adds a scheme, keeps it when present, rejects the rest', () => {

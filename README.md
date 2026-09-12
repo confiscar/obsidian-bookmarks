@@ -6,6 +6,7 @@ A small browser extension that keeps your bookmarks in a markdown file inside an
 - **Bookmark list** — your headings as folders, closed by default, with **Open all** / **Close all**. Click a bookmark to open it.
 - **Pinned** — a pin on every entry writes that bookmark into the note's front matter, holding it at the top of the list.
 - **Edit and delete** — every entry also carries a pencil and a waste basket: edit rewrites the name, URL and folder, delete removes the line.
+- **Favicons** — each entry shows its site's icon, read from the browser's own cache rather than the network.
 - **⚙ Settings** — a page of its own (back button returns to the list) for choosing the file and how to reach Obsidian.
 
 Works in Chrome (and Chromium: Edge, Brave, …) and Firefox from one codebase.
@@ -122,6 +123,15 @@ The pinned rows are the same rows as the ones in the tree, so unpinning either c
 
 The pin is an inline SVG rather than an emoji, so it takes the theme's colour and needs no font: outline when unpinned, filled when pinned. It is the `pin`/`pin-fill` pair from [Bootstrap Icons](https://github.com/twbs/icons) (MIT) — see [THIRD-PARTY.md](THIRD-PARTY.md).
 
+### Favicons
+
+Every entry shows the icon of its site, taken from the browser rather than fetched:
+
+- **Chrome and Edge** keep a favicon for every page they have seen and serve it to extensions from `_favicon/`, so the icons cover your whole browsing history and nothing is downloaded. This needs the `favicon` permission — Chromium-only, so the build strips it for Firefox.
+- **Firefox has no such API.** Instead the extension caches the icon of the page you are on when the popup opens, through `activeTab` — which the popup already holds, so no new permission is asked for. Only `data:` icons are kept (they render without a network request), keyed by site, capped at 200 sites. The practical effect: **Firefox shows icons for sites you have visited since installing the extension**, and a globe for the rest.
+
+When there is nothing to show — Firefox has not seen the site, or the icon fails to load — the row keeps a globe glyph in the same slot, so names and actions stay aligned either way.
+
 ### Editing and deleting
 
 Every row's actions are **pin**, **pencil**, **waste basket**, in that order.
@@ -203,6 +213,8 @@ Implement these five methods and select the adapter in `src/popup/index.js`:
 | `loadSettings()` / `saveSettings(settings)` | persist the settings object |
 | `openUrl(url)` | open a bookmark in a new tab |
 | `requestHostAccess()` | ensure the extension may call `127.0.0.1`, prompting if needed; resolves a boolean |
+| `faviconUrl(url)` | a renderable icon for that page, or null |
+| `rememberFavicons()` | capture what the browser can offer for the pages that are open — a no-op in browsers that can look icons up themselves |
 
 `test/platform-adapters.test.js` pins both adapters to that contract, so a new one can be checked the same way.
 
@@ -226,6 +238,7 @@ Implement these five methods and select the adapter in `src/popup/index.js`:
 
 - Once confirmed, deleting is immediate and there is no undo in the popup: the note keeps the last state you saw, and a vault under git keeps the rest.
 - Pinned bookmarks are also still in their folder; the order inside each folder is unchanged.
+- On Firefox the favicon cache only knows sites you have visited with the extension installed; Chrome shows an icon for anything it has ever loaded.
 - Folders come from headings; markdown stops at six levels, so a deeper path is refused rather than flattened.
 - The whole file is re-read (and every link re-parsed) on each refresh — fine for a few thousand lines.
 - No duplicate detection, and no conflict handling beyond "Obsidian is the only writer".

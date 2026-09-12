@@ -4,6 +4,7 @@ import test from 'node:test';
 import { readPinned } from '../src/core/front-matter.js';
 
 import {
+  allBookmarks,
   allGroupIds,
   findBookmarkLine,
   findBookmarkPath,
@@ -79,6 +80,20 @@ test('links land in the folder above them, and loose ones stay loose', () => {
 
   const withPreamble = parseBookmarkTree(`* [Top](https://top.test)\n\n${FILE}`);
   assert.deepEqual(withPreamble.loose.map((b) => b.name), ['Top']);
+});
+
+test('every bookmark in the note can be listed, loose ones first', () => {
+  const names = allBookmarks(parseBookmarkTree(`* [Top](https://top.test)\n\n${FILE}`)).map((b) => b.name);
+
+  assert.deepEqual(names, [
+    'Top',
+    'CSS Gradient',
+    'Tania Rascia',
+    'OneMotion',
+    'Spotify',
+    'FreeMediaHeckYeah',
+    'Amazon',
+  ]);
 });
 
 test('folder ids are the path, and descendants can be listed', () => {

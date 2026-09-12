@@ -1,5 +1,6 @@
-import { normalizeUrl, urlKey } from '../core/bookmarks.js';
+import { normalizeUrl, siteKey, urlKey } from '../core/bookmarks.js';
 import {
+  allBookmarks,
   allGroupIds,
   findBookmarkPath,
   groupIds,
@@ -21,6 +22,10 @@ import { renderBookmarkList } from './bookmark-list.js';
  * @property {(url: string) => Promise<void>} openUrl open a bookmark in a new tab
  * @property {() => Promise<boolean>} requestHostAccess ensure the loopback API may be called,
  *   prompting if the browser requires it
+ * @property {(url: string) => Promise<string | null>} faviconUrl a renderable icon for that
+ *   page, or null when the browser has none to offer
+ * @property {() => Promise<void>} rememberFavicons capture whatever the browser can offer for
+ *   the pages the user has open right now, for the browsers that cannot look them up later
  */
 
 /**
@@ -46,6 +51,7 @@ export function createController({ port, createStore, document: doc = globalThis
     pinned: [],
     pinnedOpen: true,
     collapsed: new Set(),
+    icons: new Map(),
     editing: null,
     pendingDelete: null,
     status: null,
@@ -92,6 +98,7 @@ export function createController({ port, createStore, document: doc = globalThis
       collapsed: state.collapsed,
       pinned: state.pinned,
       pinnedOpen: state.pinnedOpen,
+      icons: state.icons,
       onOpenBookmark: (url) => port.openUrl(url),
       onToggleGroup: toggleGroup,
       onTogglePinned: togglePinnedEntry,
@@ -138,14 +145,33 @@ export function createController({ port, createStore, document: doc = globalThis
       const markdown = await store.readText();
       state.tree = parseBookmarkTree(markdown);
       state.pinned = readPinned(markdown).entries.map(({ name, url }) => ({ name, url }));
+      state.icons = await loadIcons();
     } catch (error) {
       state.tree = parseBookmarkTree('');
       state.pinned = [];
+      state.icons = new Map();
       throw error;
     } finally {
       setBusy(false);
       render();
     }
+  }
+
+  /**
+   * One lookup per site the list shows. Browsers that keep no favicon cache are asked to
+   * capture the icons of the pages that are open first, which is the only chance they get.
+   * @returns {Promise<Map<string, string | null>>}
+   */
+  async function loadIcons() {
+    await port.rememberFavicons().catch(() => {});
+
+    const icons = new Map();
+    for (const bookmark of [...allBookmarks(state.tree), ...state.pinned]) {
+      const key = siteKey(bookmark.url);
+      if (icons.has(key)) continue;
+      icons.set(key, await port.faviconUrl(bookmark.url).catch(() => null));
+    }
+    return icons;
   }
 
   /** @param {{ name: string, url: string }} bookmark */

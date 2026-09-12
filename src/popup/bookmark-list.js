@@ -1,5 +1,5 @@
-import { urlKey } from '../core/bookmarks.js';
-import { deleteIcon, editIcon, pinIcon } from './icons.js';
+import { siteKey, urlKey } from '../core/bookmarks.js';
+import { deleteIcon, editIcon, globeIcon, pinIcon } from './icons.js';
 
 /** @typedef {{ name: string, url: string }} Bookmark */
 
@@ -32,6 +32,7 @@ function countBookmarks(group) {
  * @param {Set<string>} options.collapsed ids of the folders the user closed
  * @param {Bookmark[]} options.pinned entries read from the note's front matter, in file order
  * @param {boolean} options.pinnedOpen whether the pinned section is expanded
+ * @param {Map<string, string | null>} options.icons site icons, keyed by site
  * @param {(url: string) => void} options.onOpenBookmark
  * @param {(group: import('../core/bookmark-tree.js').Group) => void} options.onToggleGroup
  * @param {(bookmark: Bookmark) => void} options.onTogglePinned
@@ -46,6 +47,7 @@ export function renderBookmarkList({
   collapsed,
   pinned,
   pinnedOpen,
+  icons,
   onOpenBookmark,
   onToggleGroup,
   onTogglePinned,
@@ -176,8 +178,27 @@ export function renderBookmarkList({
       }),
     );
 
-    row.append(text, actions);
+    row.append(faviconSlot(bookmark), text, actions);
     return row;
+  }
+
+  /** @param {Bookmark} bookmark @returns {HTMLElement} a fixed slot, so rows stay aligned */
+  function faviconSlot(bookmark) {
+    const slot = doc.createElement('div');
+    slot.className = 'favicon';
+
+    const source = icons.get(siteKey(bookmark.url));
+    if (!source) {
+      slot.append(globeIcon(doc));
+      return slot;
+    }
+
+    const image = doc.createElement('img');
+    image.src = source;
+    image.alt = '';
+    image.addEventListener('error', () => slot.replaceChildren(globeIcon(doc)));
+    slot.append(image);
+    return slot;
   }
 
   /**

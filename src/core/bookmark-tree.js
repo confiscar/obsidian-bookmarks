@@ -157,6 +157,16 @@ export function allGroupIds(groups) {
 }
 
 /**
+ * @param {BookmarkTree} tree
+ * @returns {Bookmark[]} every bookmark in the note, loose ones first
+ */
+export function allBookmarks(tree) {
+  const collect = (groups) =>
+    groups.flatMap((group) => [...group.bookmarks, ...collect(group.children)]);
+  return [...tree.loose, ...collect(tree.groups)];
+}
+
+/**
  * Places a bookmark in a folder, appending whatever headings that folder still needs.
  * Everything already in the note is left alone.
  *

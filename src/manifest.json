@@ -7,7 +7,7 @@
     "default_popup": "popup/index.html",
     "default_title": "Obsidian bookmarks"
   },
-  "permissions": ["activeTab", "storage"],
+  "permissions": ["activeTab", "storage", "favicon"],
   "host_permissions": ["http://127.0.0.1/*", "https://127.0.0.1/*"],
   "browser_specific_settings": {
     "gecko": {

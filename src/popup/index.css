@@ -248,6 +248,22 @@ button.icon.active {
   min-width: 0;
 }
 
+.favicon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+
+.favicon img {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+}
+
 .group-toggle svg {
   display: block;
   /* A pin's mass is its head, which sits above the middle of its box, so an icon centred
