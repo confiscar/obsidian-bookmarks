@@ -25,4 +25,7 @@
  * @typedef {object} FileStore
  * @property {() => Promise<string>} readText   File contents; '' when absent.
  * @property {(line: string) => Promise<void>} appendLine  Append one line.
+ * @property {() => Promise<string | null>} checkTarget
+ *   Describe anything wrong with the configured target (e.g. it is a folder), or
+ *   null when it is usable.
  */

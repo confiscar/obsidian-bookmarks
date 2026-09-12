@@ -179,8 +179,14 @@ export function createController({ port, createStore, document: doc = globalThis
 
     setView('list');
     const failure = await refresh();
+    const targetProblem =
+      failure || problems.length
+        ? null
+        : await store.checkTarget().catch((error) => error.message);
+
     if (failure) setStatus({ kind: 'error', text: failure });
     else if (problems.length) setStatus({ kind: 'error', text: problems.join(' ') });
+    else if (targetProblem) setStatus({ kind: 'error', text: targetProblem });
     else setStatus({ kind: 'info', text: 'Settings saved.' });
   }
 

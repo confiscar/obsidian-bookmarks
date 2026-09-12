@@ -91,10 +91,10 @@ npm run build     # → dist/chrome, dist/firefox
 To work without Obsidian running (or without touching your vault), start the bundled fake of the plugin:
 
 ```sh
-node scripts/fake-obsidian.mjs --port=27123 --key=test-key --file=bookmarks.md
+node scripts/fake-obsidian.mjs --port=27123 --key=test-key
 ```
 
-It implements the three endpoints the extension uses and keeps the "vault" in memory. Point the extension at it with API base `http://127.0.0.1:27123` and API key `test-key`.
+It implements the three endpoints the extension uses, keeps the "vault" in memory, and seeds a small vault — `bookmarks.md`, plus a `Bookmarks/` folder holding `Weblinks.md` and `ReadLater.md` — so you can exercise both a good target and the folder mistake. Point the extension at it with API base `http://127.0.0.1:27123` and API key `test-key`.
 
 ### Layout
 
@@ -126,7 +126,9 @@ Implement the five-method `PlatformPort` from `src/core/ports.js` (`getActiveTab
 
 **Firefox: the list never loads** — the host permission was not granted; use **Request local access** or check `about:addons` → Permissions.
 
-**Nothing is written to the vault** — the file path is relative to the vault root (no leading `/`) and must end in `.md` to show up as a note in Obsidian.
+**Nothing is written to the vault** — the file path is relative to the vault root (no leading `/`) and must end in `.md` to show up as a note in Obsidian. It must be a **note, not a folder**: pointing it at a folder (easy to do when your vault has a `Bookmarks/` folder) makes Obsidian refuse the write with `File already exists.`, which the extension reports when you save settings.
+
+**A write still fails** — the extension now includes Obsidian's own explanation and error code in the message. Obsidian logs the full stack for every 500 it returns: `Cmd+Opt+I` in Obsidian → Console.
 
 **A different machine or port** — the manifest only allows `http://127.0.0.1/*` and `https://127.0.0.1/*`. Anything else needs editing `host_permissions` in `src/manifest.json` and rebuilding.
 

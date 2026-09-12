@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import http from 'node:http';
 import test from 'node:test';
 
 import { createObsidianStore, FileStoreError } from '../src/core/obsidian-store.js';
@@ -54,6 +55,75 @@ test('nested file paths are percent-encoded per segment', async (t) => {
 
   assert.equal(await store.readText(), 'x');
   assert.equal(server.requests.at(-1).path, '/vault/notes/reading list.md');
+});
+
+test('readText ignores a folder listing', async (t) => {
+  const server = await startFakeObsidian({ files: { 'Bookmarks/Weblinks.md': 'x' } });
+  t.after(() => server.close());
+  const { store } = await withStore(server, { filePath: 'Bookmarks' });
+
+  assert.equal(await store.readText(), '');
+});
+
+test('checkTarget accepts a file that exists, and one that does not yet', async (t) => {
+  const server = await startFakeObsidian({ files: { 'Bookmarks/Weblinks.md': 'x' } });
+  t.after(() => server.close());
+
+  const existing = await withStore(server, { filePath: 'Bookmarks/Weblinks.md' });
+  assert.equal(await existing.store.checkTarget(), null);
+
+  const future = await withStore(server, { filePath: 'Bookmarks/New.md' });
+  assert.equal(await future.store.checkTarget(), null);
+
+  const nowhere = await withStore(server, { filePath: 'Nope/deep/New.md' });
+  assert.equal(await nowhere.store.checkTarget(), null);
+});
+
+test('checkTarget names the folder when the target is one', async (t) => {
+  const server = await startFakeObsidian({ files: { 'Bookmarks/Weblinks.md': 'x' } });
+  t.after(() => server.close());
+  const { store } = await withStore(server, { filePath: 'Bookmarks' });
+
+  const problem = await store.checkTarget();
+  assert.match(problem, /“Bookmarks\/” is a folder/);
+  assert.match(problem, /“Bookmarks\/bookmarks.md”/);
+});
+
+test('checkTarget catches an empty folder too', async (t) => {
+  const server = await startFakeObsidian({ dirs: ['Archive'] });
+  t.after(() => server.close());
+  const { store } = await withStore(server, { filePath: 'archive' });
+
+  assert.match(await store.checkTarget(), /“Archive\/” is a folder/);
+});
+
+test('appending to a folder surfaces the plugin message instead of a bare 500', async (t) => {
+  const server = await startFakeObsidian({ files: { 'Bookmarks/Weblinks.md': 'x' } });
+  t.after(() => server.close());
+  const { store } = await withStore(server, { filePath: 'Bookmarks' });
+
+  const error = await store.appendLine('- [A](https://a.test)').catch((caught) => caught);
+  assert.ok(error instanceof FileStoreError);
+  assert.match(error.message, /Obsidian returned 500/);
+  assert.match(error.message, /File already exists\./);
+  assert.match(error.message, /errorCode 50001/);
+});
+
+test('a non-JSON error body is still reported', async (t) => {
+  const server = http.createServer((_req, res) => {
+    res.writeHead(500, { 'Content-Type': 'text/plain' }).end('kaboom');
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const { port } = server.address();
+
+  const store = createObsidianStore({
+    getSettings: () => ({ apiBase: `http://127.0.0.1:${port}`, apiKey: 'k', filePath: 'x.md' }),
+  });
+
+  const error = await store.readText().catch((caught) => caught);
+  assert.ok(error instanceof FileStoreError);
+  assert.match(error.message, /Obsidian returned 500 Internal Server Error: kaboom/);
 });
 
 test('a rejected API key explains what to do', async (t) => {
