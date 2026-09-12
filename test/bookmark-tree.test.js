@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { readPinned } from '../src/core/front-matter.js';
+
 import {
   allGroupIds,
+  findBookmarkLine,
+  findBookmarkPath,
   insertBookmark,
   normalizePath,
   parseBookmarkTree,
+  removeBookmark,
+  updateBookmark,
 } from '../src/core/bookmark-tree.js';
 
 const FILE = [
@@ -215,4 +221,113 @@ test('a folder is required, and markdown cannot nest past h6', () => {
     () => insertBookmark(FILE, { path: 'A/B/C/D/E/F', bookmark: item }),
     /deeper than markdown's 6 heading levels/,
   );
+});
+
+test('a body scan ignores the front matter, even when it quotes the same URL', () => {
+  const url = 'https://www.onemotion.com/chord-player/';
+  const note = ['---', 'pinned:', `  - '[OneMotion](${url})'`, '---', '', ...FILE.split('\n')].join('\n');
+
+  const line = findBookmarkLine(note, url);
+  assert.match(note.split('\n')[line], /^\* \[OneMotion\]/);
+
+  const edited = updateBookmark(note, { url, bookmark: { name: 'OneMotion', url }, path: 'Music/Production' });
+  assert.deepEqual(readPinned(edited.markdown).entries.map((entry) => entry.url), [url]);
+
+  const { markdown, removed } = removeBookmark(note, url);
+  assert.equal(removed, true);
+  assert.deepEqual(readPinned(markdown).entries.map((entry) => entry.url), [url]);
+});
+
+test('a bookmark is found by its URL, wherever it sits', () => {
+  const spotify = findBookmarkLine(FILE, 'https://open.spotify.com/');
+  assert.match(FILE.split('\n')[spotify], /\* \[Spotify\]/);
+
+  assert.equal(findBookmarkLine(FILE, 'https://open.spotify.com'), spotify);
+  assert.equal(findBookmarkLine(FILE, 'https://nowhere.test/'), null);
+  assert.equal(findBookmarkLine(['```', '* [X](https://fenced.test/)', '```'].join('\n'), 'https://fenced.test/'), null);
+});
+
+test('a bookmark knows which folder holds it', () => {
+  const tree = parseBookmarkTree(FILE);
+
+  assert.deepEqual(findBookmarkPath(tree, 'https://open.spotify.com/'), ['Music', 'Listen']);
+  assert.deepEqual(findBookmarkPath(tree, 'https://www.amazon.co.uk/'), ['Piracy', 'Shopping']);
+  assert.deepEqual(findBookmarkPath(parseBookmarkTree(`* [Top](https://top.test)\n\n${FILE}`), 'https://top.test'), []);
+  assert.equal(findBookmarkPath(tree, 'https://nowhere.test/'), null);
+});
+
+test('deleting a bookmark removes its line and nothing else', () => {
+  const { markdown, removed } = removeBookmark(FILE, 'https://open.spotify.com/');
+
+  assert.equal(removed, true);
+  assert.ok(!markdown.includes('Spotify'));
+  assert.deepEqual(findBookmarkPath(parseBookmarkTree(markdown), 'https://www.amazon.co.uk/'), [
+    'Piracy',
+    'Shopping',
+  ]);
+  assert.equal(markdown.split('\n').length, FILE.split('\n').length - 1);
+});
+
+test('deleting a bookmark that is not there changes nothing', () => {
+  const { markdown, removed } = removeBookmark(FILE, 'https://nowhere.test/');
+
+  assert.equal(removed, false);
+  assert.equal(markdown, FILE);
+});
+
+test('editing a bookmark rewrites it where it stands', () => {
+  const before = findBookmarkLine(FILE, 'https://open.spotify.com/');
+  const { markdown, groupId } = updateBookmark(FILE, {
+    url: 'https://open.spotify.com/',
+    bookmark: { name: 'Spotify app', url: 'https://open.spotify.com/' },
+    path: 'Music/Listen',
+  });
+
+  assert.equal(groupId, 'Music/Listen');
+  assert.equal(findBookmarkLine(markdown, 'https://open.spotify.com/'), before);
+  assert.match(markdown.split('\n')[before], /^\* \[Spotify app\]\(https:\/\/open\.spotify\.com\/\)$/);
+  assert.deepEqual(findBookmarkPath(parseBookmarkTree(markdown), 'https://open.spotify.com/'), [
+    'Music',
+    'Listen',
+  ]);
+});
+
+test('editing a bookmark into another folder moves it', () => {
+  const { markdown, groupId } = updateBookmark(FILE, {
+    url: 'https://open.spotify.com/',
+    bookmark: { name: 'Spotify', url: 'https://open.spotify.com/' },
+    path: 'Music/Production',
+  });
+
+  assert.equal(groupId, 'Music/Production');
+  assert.deepEqual(findBookmarkPath(parseBookmarkTree(markdown), 'https://open.spotify.com/'), [
+    'Music',
+    'Production',
+  ]);
+  assert.match(markdown, /OneMotion[^\n]*\n\* \[Spotify\]/);
+});
+
+test('editing a bookmark whose URL changes leaves one copy behind', () => {
+  const { markdown } = updateBookmark(FILE, {
+    url: 'https://open.spotify.com/',
+    bookmark: { name: 'Something else', url: 'https://elsewhere.test/' },
+    path: 'Music/Listen',
+  });
+
+  assert.ok(!markdown.includes('https://open.spotify.com/'));
+  assert.deepEqual(findBookmarkPath(parseBookmarkTree(markdown), 'https://elsewhere.test/'), [
+    'Music',
+    'Listen',
+  ]);
+});
+
+test('editing a bookmark the note does not hold gives it a line', () => {
+  const { markdown, groupId } = updateBookmark(FILE, {
+    url: 'https://nowhere.test/',
+    bookmark: { name: 'Only pinned', url: 'https://nowhere.test/' },
+    path: 'Music',
+  });
+
+  assert.equal(groupId, 'Music');
+  assert.deepEqual(findBookmarkPath(parseBookmarkTree(markdown), 'https://nowhere.test/'), ['Music']);
 });

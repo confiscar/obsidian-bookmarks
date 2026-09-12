@@ -188,6 +188,37 @@ button.icon.active {
   align-items: center;
 }
 
+.row-actions {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.row-actions button {
+  display: flex;
+  padding: 1px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  line-height: 0;
+}
+
+.row-actions .pin:hover {
+  color: var(--fg);
+}
+
+.row-actions .pin[aria-pressed='true'] {
+  color: var(--accent);
+}
+
+.row-actions .edit:hover {
+  color: var(--fg);
+}
+
+.row-actions .delete:hover {
+  color: var(--error);
+}
+
 #bookmark-list li.pinned {
   flex-direction: row;
   gap: 6px;
@@ -204,28 +235,12 @@ button.icon.active {
   min-width: 0;
 }
 
-.pin {
-  display: flex;
-  padding: 0 2px;
-  border: 0;
-  background: none;
-  color: var(--muted);
-  line-height: 0;
-}
-
-.pin:hover {
-  color: var(--fg);
-}
-
-.pin[aria-pressed='true'] {
-  color: var(--accent);
-}
-
 .group-toggle svg {
   display: block;
-  /* The glyph's mass is its head, which sits above the middle of its box, so an icon
-     centred by box reads high beside a label; the nudge lands it on the text's optical
-     centre. The header asks for a cap-height icon so the lockup reads as one unit. */
+  /* A pin's mass is its head, which sits above the middle of its box, so an icon centred
+     by box reads high beside a label: the nudge lands it on the text's optical centre, and
+     the margin keeps a space between it and the label. */
+  margin-right: 0.25em;
   transform: translateY(0.15em);
 }
 

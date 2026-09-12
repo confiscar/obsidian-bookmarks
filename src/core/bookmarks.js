@@ -53,6 +53,15 @@ export function formatBookmark({ name, url }, marker = '-') {
 }
 
 /**
+ * @param {string} url
+ * @returns {string} the form used to compare and to store URLs, so `https://a.test` and
+ * `https://a.test/` are the same bookmark everywhere
+ */
+export function urlKey(url) {
+  return normalizeUrl(url) ?? String(url);
+}
+
+/**
  * @param {string} input whatever the user typed, with or without a scheme
  * @returns {string | null} canonical http(s) URL, or null when the input is not one
  */

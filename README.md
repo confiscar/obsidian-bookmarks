@@ -5,6 +5,7 @@ A small browser extension that keeps your bookmarks in a markdown file inside an
 - **★ Save bookmark** — prefills the page name, URL and folder, lets you edit all three, and writes one line into the note.
 - **Bookmark list** — your headings as folders, open by default, with **Open all** / **Close all**. Click a bookmark to open it.
 - **Pinned** — a pin on every entry writes that bookmark into the note's front matter, holding it at the top of the list.
+- **Edit and delete** — every entry also carries a pencil and a waste basket: edit rewrites the name, URL and folder, delete removes the line.
 - **⚙ Settings** — a page of its own (back button returns to the list) for choosing the file and how to reach Obsidian.
 
 Works in Chrome (and Chromium: Edge, Brave, …) and Firefox from one codebase.
@@ -119,6 +120,15 @@ The pinned rows are the same rows as the ones in the tree, so unpinning either c
 
 The pin is an inline SVG rather than an emoji, so it takes the theme's colour and needs no font: outline when unpinned, filled when pinned. It is the `pin`/`pin-fill` pair from [Bootstrap Icons](https://github.com/twbs/icons) (MIT) — see [THIRD-PARTY.md](THIRD-PARTY.md).
 
+### Editing and deleting
+
+Every row's actions are **pin**, **pencil**, **waste basket**, in that order.
+
+- **Edit** opens the same form, filled with the bookmark's name, URL and folder, and the button becomes **Update**. Saving rewrites the bookmark **where it stands** when the folder is unchanged — same line, same place in the file — and moves it when you point it at another folder. Leaving the folder empty keeps a bookmark where it is; a bookmark that only exists in the front matter gets a line in the folder you type. If the URL changes, its pin follows it.
+- **Delete** removes the bookmark's line from the note and takes its pin with it, so a deleted bookmark can't linger at the top of the list. Nothing is asked first — the note is the undo, or git if your vault is a repository. Deleting a bookmark that is no longer in the note just clears its pin.
+
+Both act on the URL, which is how a bookmark is identified everywhere else: deleting a URL that appears in two folders removes both lines.
+
 Entries are one line per pin, in the order they were added:
 
 ```md
@@ -164,7 +174,7 @@ src/
     index.js              picks a platform port, starts the controller
     controller.js         state machine + the save/settings flows
     bookmark-list.js      renders the pinned section and the folder tree
-    pin-icon.js           the pin glyph, from Bootstrap Icons (MIT)
+    icons.js              the pin, pencil and waste basket glyphs, from Bootstrap Icons (MIT)
   core/                   browser-agnostic domain logic
     bookmarks.js          markdown links ⇄ bookmarks, URL normalization
     bookmark-tree.js      headings ⇄ folder tree, and placing a bookmark in one
@@ -212,7 +222,7 @@ Implement these five methods and select the adapter in `src/popup/index.js`:
 
 ## Limits of this version
 
-- Adds only: nothing is renamed, moved or deleted from the popup — a pin is a front matter line, nothing more.
+- Deleting is immediate and there is no undo in the popup: the note keeps the last state you saw, and a vault under git keeps the rest.
 - Pinned bookmarks are also still in their folder; the order inside each folder is unchanged.
 - Folders come from headings; markdown stops at six levels, so a deeper path is refused rather than flattened.
 - The whole file is re-read (and every link re-parsed) on each refresh — fine for a few thousand lines.

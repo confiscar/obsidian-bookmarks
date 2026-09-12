@@ -1,4 +1,4 @@
-import { formatBookmarkLink, normalizeUrl, parseBookmarks } from './bookmarks.js';
+import { formatBookmarkLink, parseBookmarks, urlKey } from './bookmarks.js';
 
 /** @typedef {{ name: string, url: string }} Bookmark */
 
@@ -69,11 +69,6 @@ export function readPinned(markdown) {
   return { range, keyLine, inline, listLines, entries };
 }
 
-/** @param {string} url @returns {string} the form used to store and compare pinned URLs */
-export function pinnedKey(url) {
-  return normalizeUrl(url) ?? String(url);
-}
-
 /**
  * Adds the bookmark to the note's front matter, or removes it when it is already there.
  *
@@ -84,8 +79,8 @@ export function pinnedKey(url) {
 export function togglePinned(markdown, bookmark) {
   const text = String(markdown ?? '');
   const state = readPinned(text);
-  const key = pinnedKey(bookmark.url);
-  const matches = state.entries.filter((entry) => pinnedKey(entry.url) === key);
+  const key = urlKey(bookmark.url);
+  const matches = state.entries.filter((entry) => urlKey(entry.url) === key);
 
   if (!matches.length) {
     if (state.inline && state.inline !== EMPTY_LIST) {

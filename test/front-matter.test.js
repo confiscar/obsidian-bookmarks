@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { frontMatterRange, pinnedKey, readPinned, togglePinned } from '../src/core/front-matter.js';
+import { urlKey } from '../src/core/bookmarks.js';
+import { frontMatterRange, readPinned, togglePinned } from '../src/core/front-matter.js';
 
 const NOTE = ['## Music', '', '* [OneMotion](https://www.onemotion.com/chord-player/)', ''].join('\n');
 const chord = { name: 'Chord player', url: 'https://chords.test/player' };
@@ -80,7 +81,7 @@ test('a pin is stored as the note spells its URL, and matched by its normalized 
   const added = togglePinned(NOTE, bare).markdown;
 
   assert.equal(readPinned(added).entries[0].url, 'https://a.test');
-  assert.equal(pinnedKey('https://a.test'), 'https://a.test/');
+  assert.equal(urlKey('https://a.test'), 'https://a.test/');
   assert.equal(togglePinned(added, { name: 'A', url: 'https://a.test/' }).pinned, false);
 });
 

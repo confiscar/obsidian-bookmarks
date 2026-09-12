@@ -1,5 +1,13 @@
-import { normalizeUrl } from '../core/bookmarks.js';
-import { allGroupIds, groupIds, insertBookmark, parseBookmarkTree } from '../core/bookmark-tree.js';
+import { normalizeUrl, urlKey } from '../core/bookmarks.js';
+import {
+  allGroupIds,
+  findBookmarkPath,
+  groupIds,
+  insertBookmark,
+  parseBookmarkTree,
+  removeBookmark,
+  updateBookmark,
+} from '../core/bookmark-tree.js';
 import { readPinned, togglePinned } from '../core/front-matter.js';
 import { DEFAULT_SETTINGS, findSettingsProblems, normalizeSettings } from '../core/settings.js';
 import { renderBookmarkList } from './bookmark-list.js';
@@ -38,6 +46,7 @@ export function createController({ port, createStore, document: doc = globalThis
     pinned: [],
     pinnedOpen: true,
     collapsed: new Set(),
+    editing: null,
     status: null,
   };
   const store = createStore(() => state.settings);
@@ -57,15 +66,15 @@ export function createController({ port, createStore, document: doc = globalThis
     for (const button of ui.actionButtons) button.disabled = busy;
   };
 
-  /** @param {'bookmarks' | 'newBookmark' | 'settings'} view */
+  /** @param {'bookmarks' | 'bookmarkForm' | 'settings'} view */
   function showView(view) {
     const isSettings = view === 'settings';
     ui.mainView.hidden = isSettings;
     ui.settingsView.hidden = !isSettings;
-    ui.bookmarkForm.hidden = view !== 'newBookmark';
-    ui.saveBookmark.setAttribute('aria-expanded', String(view === 'newBookmark'));
+    ui.bookmarkForm.hidden = view !== 'bookmarkForm';
+    ui.saveBookmark.setAttribute('aria-expanded', String(view === 'bookmarkForm'));
     ui.openSettings.classList.toggle('active', isSettings);
-    if (view === 'newBookmark') ui.name.focus();
+    if (view === 'bookmarkForm') ui.name.focus();
   }
 
   function render() {
@@ -85,6 +94,8 @@ export function createController({ port, createStore, document: doc = globalThis
       onOpenBookmark: (url) => port.openUrl(url),
       onToggleGroup: toggleGroup,
       onTogglePinned: togglePinnedEntry,
+      onEditBookmark: openEditForm,
+      onDeleteBookmark: deleteBookmark,
       onTogglePinnedSection: () => {
         state.pinnedOpen = !state.pinnedOpen;
         render();
@@ -153,12 +164,36 @@ export function createController({ port, createStore, document: doc = globalThis
 
   async function openBookmarkForm() {
     const tab = await port.getActiveTab().catch(() => null);
+    state.editing = null;
+    ui.confirmBookmark.textContent = 'Save';
     ui.name.value = (tab?.title ?? '').trim();
     ui.url.value = normalizeUrl(tab?.url) ? tab.url : '';
     ui.group.value = DEFAULT_GROUP;
     setStatus(null);
-    showView('newBookmark');
+    showView('bookmarkForm');
     ui.name.select();
+  }
+
+  /** @param {{ name: string, url: string }} bookmark */
+  function openEditForm(bookmark) {
+    state.editing = bookmark;
+    ui.confirmBookmark.textContent = 'Update';
+    ui.name.value = bookmark.name;
+    ui.url.value = bookmark.url;
+    ui.group.value = (findBookmarkPath(state.tree, bookmark.url) ?? []).join('/');
+    setStatus(null);
+    showView('bookmarkForm');
+    ui.name.select();
+  }
+
+  function closeBookmarkForm() {
+    state.editing = null;
+    ui.confirmBookmark.textContent = 'Save';
+    ui.name.value = '';
+    ui.url.value = '';
+    ui.group.value = DEFAULT_GROUP;
+    setStatus(null);
+    showView('bookmarks');
   }
 
   async function saveBookmark() {
@@ -167,18 +202,24 @@ export function createController({ port, createStore, document: doc = globalThis
       setStatus(failure('That is not a valid http(s) URL.'));
       return;
     }
-    const folder = ui.group.value.trim();
-    if (!folder) {
+    const typedFolder = ui.group.value.trim();
+    const editing = state.editing;
+    if (!typedFolder && !editing) {
       setStatus(failure('Choose a folder, or type a new one.'));
       return;
     }
+
     const name = ui.name.value.trim() || url;
+    const folder = typedFolder || (findBookmarkPath(state.tree, editing.url) ?? []).join('/');
 
     let groupId;
     try {
       const markdown = await store.readText();
-      const updated = insertBookmark(markdown, { path: folder, bookmark: { name, url } });
-      await store.writeText(updated.markdown);
+      const updated = editing
+        ? updateBookmark(markdown, { url: editing.url, bookmark: { name, url }, path: folder })
+        : insertBookmark(markdown, { path: folder, bookmark: { name, url } });
+
+      await store.writeText(movedPin(updated.markdown, editing, { name, url }));
       groupId = updated.groupId;
       await reloadBookmarks();
     } catch (error) {
@@ -186,11 +227,57 @@ export function createController({ port, createStore, document: doc = globalThis
       return;
     }
 
-    showView('bookmarks');
-    ui.name.value = '';
-    ui.url.value = '';
-    ui.group.value = DEFAULT_GROUP;
-    setStatus(info(`Saved “${name}” to ${groupId}.`));
+    closeBookmarkForm();
+    setStatus(info(editing ? `Updated “${name}” in ${groupId}.` : `Saved “${name}” to ${groupId}.`));
+  }
+
+  /**
+   * @param {string} markdown
+   * @param {string} url
+   * @returns {boolean} whether that URL is in the note's front matter
+   */
+  function isPinned(markdown, url) {
+    return readPinned(markdown).entries.some((entry) => urlKey(entry.url) === urlKey(url));
+  }
+
+  /**
+   * Keeps a bookmark's pin with the bookmark when its URL changes.
+   * @param {string} markdown
+   * @param {{ name: string, url: string } | null} editing
+   * @param {{ name: string, url: string }} bookmark
+   * @returns {string} the note, with the pin moved if there was one
+   */
+  function movedPin(markdown, editing, bookmark) {
+    if (!editing || urlKey(editing.url) === urlKey(bookmark.url)) return markdown;
+    if (!isPinned(markdown, editing.url)) return markdown;
+
+    const unpinned = togglePinned(markdown, editing).markdown;
+    return togglePinned(unpinned, bookmark).markdown;
+  }
+
+  /** @param {{ name: string, url: string }} bookmark */
+  async function deleteBookmark(bookmark) {
+    setBusy(true);
+    try {
+      const markdown = await store.readText();
+      const { markdown: withoutLine, removed } = removeBookmark(markdown, bookmark.url);
+      const unpin = isPinned(withoutLine, bookmark.url);
+      const next = unpin ? togglePinned(withoutLine, bookmark).markdown : withoutLine;
+
+      if (removed || unpin) await store.writeText(next);
+      await reloadBookmarks();
+      setStatus(
+        info(
+          removed || unpin
+            ? `Deleted “${bookmark.name}”.`
+            : `“${bookmark.name}” is no longer in the note.`,
+        ),
+      );
+    } catch (error) {
+      setStatus(failure(error.message));
+    } finally {
+      setBusy(false);
+    }
   }
 
   function openSettings() {
@@ -309,10 +396,7 @@ export function createController({ port, createStore, document: doc = globalThis
         event.preventDefault();
         saveBookmark();
       });
-      ui.cancelBookmark.addEventListener('click', () => {
-        setStatus(null);
-        showView('bookmarks');
-      });
+      ui.cancelBookmark.addEventListener('click', closeBookmarkForm);
       ui.expandAll.addEventListener('click', () => {
         state.collapsed.clear();
         state.pinnedOpen = true;

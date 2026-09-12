@@ -1,4 +1,4 @@
-import { formatBookmark, parseBookmarks } from './bookmarks.js';
+import { formatBookmark, parseBookmarks, urlKey } from './bookmarks.js';
 import { frontMatterRange } from './front-matter.js';
 
 /** @typedef {{ name: string, url: string }} Bookmark */
@@ -49,6 +49,24 @@ function fencedLines(lines) {
 const sameName = (a, b) => a.toLowerCase() === b.toLowerCase();
 
 /**
+ * Front matter and code fences are not bookmark content. A pinned entry quotes the same URL as
+ * the line it mirrors, so a body scan that read the front matter would find the wrong line.
+ *
+ * @param {string} markdown
+ * @returns {boolean[]} whether each line holds note content
+ */
+function contentLines(markdown) {
+  const lines = String(markdown ?? '').split('\n');
+  const fenced = fencedLines(lines);
+  const frontMatter = frontMatterRange(markdown);
+
+  return lines.map(
+    (_, index) =>
+      !fenced[index] && !(frontMatter && index >= frontMatter.start && index <= frontMatter.end),
+  );
+}
+
+/**
  * Accepts `'Music/Production'` or `['Music', 'Production']`, and tolerates stray `#`, padding
  * and empty segments so that a typed value can be handed over as-is.
  * @param {string | string[]} path
@@ -69,8 +87,7 @@ export function normalizePath(path) {
 export function parseBookmarkTree(markdown) {
   const text = String(markdown ?? '');
   const lines = text.split('\n');
-  const fenced = fencedLines(lines);
-  const frontMatter = frontMatterRange(text);
+  const content = contentLines(text);
   const loose = [];
   const groups = [];
   const stack = [];
@@ -78,8 +95,7 @@ export function parseBookmarkTree(markdown) {
   let rootLevel = null;
 
   lines.forEach((line, index) => {
-    if (fenced[index]) return;
-    if (frontMatter && index >= frontMatter.start && index <= frontMatter.end) return;
+    if (!content[index]) return;
 
     const marker = LIST_ITEM.exec(line);
     if (marker) markers.push(marker[1]);
@@ -155,6 +171,7 @@ export function insertBookmark(markdown, { path, bookmark }) {
   const text = String(markdown ?? '');
   const tree = parseBookmarkTree(text);
   const lines = text.split('\n');
+  const content = contentLines(text);
   const item = formatBookmark(bookmark, tree.listMarker);
 
   let group = null;
@@ -172,7 +189,7 @@ export function insertBookmark(markdown, { path, bookmark }) {
   }
 
   if (missingAt === names.length) {
-    insertAtRegionEnd(lines, group.headingLine, Infinity, item);
+    insertAtRegionEnd(lines, content, group.headingLine, Infinity, item);
     return { markdown: lines.join('\n'), groupId: group.id };
   }
 
@@ -188,10 +205,102 @@ export function insertBookmark(markdown, { path, bookmark }) {
   ]);
   block.push('', item, '');
 
-  if (group) insertAtRegionEnd(lines, group.headingLine, group.level, block.join('\n'));
-  else insertAtRegionEnd(lines, -1, level - 1, block.join('\n'));
+  if (group) insertAtRegionEnd(lines, content, group.headingLine, group.level, block.join('\n'));
+  else insertAtRegionEnd(lines, content, -1, level - 1, block.join('\n'));
 
   return { markdown: lines.join('\n'), groupId: (group?.path ?? []).concat(missing).join('/') };
+}
+
+/**
+ * @param {string} markdown entire note
+ * @param {string} url
+ * @returns {number | null} index of the first line outside a code fence that links to that URL
+ */
+export function findBookmarkLine(markdown, url) {
+  const text = String(markdown ?? '');
+  const lines = text.split('\n');
+  const content = contentLines(text);
+  const wanted = urlKey(url);
+
+  for (const [index, line] of lines.entries()) {
+    if (!content[index]) continue;
+    if (parseBookmarks(line).some((bookmark) => urlKey(bookmark.url) === wanted)) return index;
+  }
+  return null;
+}
+
+/**
+ * @param {BookmarkTree} tree
+ * @param {string} url
+ * @returns {string[] | null} folder the bookmark sits in — `[]` for one above every heading —
+ *   or null when the note does not hold it
+ */
+export function findBookmarkPath(tree, url) {
+  const wanted = urlKey(url);
+  if (tree.loose.some((bookmark) => urlKey(bookmark.url) === wanted)) return [];
+
+  const search = (groups) => {
+    for (const group of groups) {
+      if (group.bookmarks.some((bookmark) => urlKey(bookmark.url) === wanted)) return group.path;
+      const nested = search(group.children);
+      if (nested) return nested;
+    }
+    return null;
+  };
+  return search(tree.groups);
+}
+
+/**
+ * @param {string} markdown entire note
+ * @param {string} url
+ * @returns {{ markdown: string, removed: boolean }} the note without the lines that link to it
+ */
+export function removeBookmark(markdown, url) {
+  const text = String(markdown ?? '');
+  const lines = text.split('\n');
+  const content = contentLines(text);
+  const wanted = urlKey(url);
+
+  const kept = lines.filter(
+    (line, index) =>
+      !content[index] ||
+      !parseBookmarks(line).some((bookmark) => urlKey(bookmark.url) === wanted),
+  );
+  return { markdown: kept.join('\n'), removed: kept.length !== lines.length };
+}
+
+/**
+ * Rewrites a bookmark where it stands when it is already in `path`, and moves it into `path`
+ * otherwise — which is also how a bookmark that only exists in the front matter gets a line.
+ *
+ * @param {string} markdown entire note
+ * @param {{ url: string, bookmark: Bookmark, path: string | string[] }} change `url` finds the
+ *   bookmark being edited; `bookmark` is what it becomes
+ * @returns {{ markdown: string, groupId: string }} the updated note and the folder it ended in
+ */
+export function updateBookmark(markdown, { url, bookmark, path }) {
+  const text = String(markdown ?? '');
+  const target = normalizePath(path);
+  const tree = parseBookmarkTree(text);
+  const line = findBookmarkLine(text, url);
+  const content = contentLines(text);
+  const current = findBookmarkPath(tree, url);
+
+  const samePath =
+    current !== null &&
+    current.length === target.length &&
+    current.every((name, index) => sameName(name, target[index]));
+
+  // A bookmark already where it belongs keeps its line, and with it its place in the file.
+  if (line !== null && samePath && content[line]) {
+    const lines = text.split('\n');
+    lines[line] = formatBookmark(bookmark, tree.listMarker);
+    return { markdown: lines.join('\n'), groupId: current.join('/') };
+  }
+
+  const { markdown: withoutOld } = removeBookmark(text, url);
+  const inserted = insertBookmark(withoutOld, { path: target, bookmark });
+  return { markdown: inserted.markdown, groupId: inserted.groupId };
 }
 
 /**
@@ -200,16 +309,16 @@ export function insertBookmark(markdown, { path, bookmark }) {
  * would otherwise be swallowed by, and what keeps a folder's own items above its subfolders.
  *
  * @param {string[]} lines mutated in place
+ * @param {boolean[]} content which lines hold note content
  * @param {number} startLine heading the region belongs to, or -1 for the whole file
  * @param {number} boundLevel the first heading at or above this level ends the region
  * @param {string} text inserted as the region's last content
  */
-function insertAtRegionEnd(lines, startLine, boundLevel, text) {
-  const fenced = fencedLines(lines);
+function insertAtRegionEnd(lines, content, startLine, boundLevel, text) {
   let end = lines.length;
 
   for (let index = startLine + 1; index < lines.length; index += 1) {
-    if (fenced[index]) continue;
+    if (!content[index]) continue;
     const heading = HEADING.exec(lines[index]);
     if (heading && heading[1].length <= boundLevel) {
       end = index;

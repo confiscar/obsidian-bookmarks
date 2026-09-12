@@ -1,5 +1,5 @@
-import { pinnedKey } from '../core/front-matter.js';
-import { pinIcon } from './pin-icon.js';
+import { urlKey } from '../core/bookmarks.js';
+import { deleteIcon, editIcon, pinIcon } from './icons.js';
 
 /** @typedef {{ name: string, url: string }} Bookmark */
 
@@ -35,6 +35,8 @@ function countBookmarks(group) {
  * @param {(url: string) => void} options.onOpenBookmark
  * @param {(group: import('../core/bookmark-tree.js').Group) => void} options.onToggleGroup
  * @param {(bookmark: Bookmark) => void} options.onTogglePinned
+ * @param {(bookmark: Bookmark) => void} options.onEditBookmark
+ * @param {(bookmark: Bookmark) => void} options.onDeleteBookmark
  * @param {() => void} options.onTogglePinnedSection
  */
 export function renderBookmarkList({
@@ -47,9 +49,11 @@ export function renderBookmarkList({
   onOpenBookmark,
   onToggleGroup,
   onTogglePinned,
+  onEditBookmark,
+  onDeleteBookmark,
   onTogglePinnedSection,
 }) {
-  const pinnedKeys = new Set(pinned.map((bookmark) => pinnedKey(bookmark.url)));
+  const pinnedKeys = new Set(pinned.map((bookmark) => urlKey(bookmark.url)));
   const rows = [];
 
   if (pinned.length) rows.push(...pinnedRows());
@@ -147,16 +151,52 @@ export function renderBookmarkList({
     text.className = 'bookmark-text';
     text.append(link, host);
 
-    const isPinned = pinnedKeys.has(pinnedKey(bookmark.url));
-    const pin = doc.createElement('button');
-    pin.type = 'button';
-    pin.className = 'pin';
-    pin.append(pinIcon(doc, { filled: isPinned }));
-    pin.title = isPinned ? 'Unpin this bookmark' : 'Pin this bookmark';
-    pin.setAttribute('aria-pressed', String(isPinned));
-    pin.addEventListener('click', () => onTogglePinned(bookmark));
+    const isPinned = pinnedKeys.has(urlKey(bookmark.url));
+    const actions = doc.createElement('div');
+    actions.className = 'row-actions';
+    actions.append(
+      actionButton({
+        className: 'pin',
+        title: isPinned ? 'Unpin this bookmark' : 'Pin this bookmark',
+        pressed: isPinned,
+        icon: pinIcon(doc, { filled: isPinned }),
+        onClick: () => onTogglePinned(bookmark),
+      }),
+      actionButton({
+        className: 'edit',
+        title: 'Edit this bookmark',
+        icon: editIcon(doc),
+        onClick: () => onEditBookmark(bookmark),
+      }),
+      actionButton({
+        className: 'delete',
+        title: 'Delete this bookmark',
+        icon: deleteIcon(doc),
+        onClick: () => onDeleteBookmark(bookmark),
+      }),
+    );
 
-    row.append(text, pin);
+    row.append(text, actions);
     return row;
+  }
+
+  /**
+   * @param {object} options
+   * @param {string} options.className
+   * @param {string} options.title used as the accessible name too
+   * @param {SVGElement} options.icon
+   * @param {() => void} options.onClick
+   * @param {boolean} [options.pressed] present for toggles
+   */
+  function actionButton({ className, title, icon, onClick, pressed }) {
+    const button = doc.createElement('button');
+    button.type = 'button';
+    button.className = className;
+    button.title = title;
+    button.setAttribute('aria-label', title);
+    if (pressed !== undefined) button.setAttribute('aria-pressed', String(pressed));
+    button.append(icon);
+    button.addEventListener('click', onClick);
+    return button;
   }
 }

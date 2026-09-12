@@ -2,7 +2,7 @@
 
 ## Bootstrap Icons
 
-`src/popup/pin-icon.js` embeds the `pin` and `pin-fill` glyphs from
+`src/popup/icons.js` embeds the `pin`, `pin-fill`, `pencil` and `trash` glyphs from
 [Bootstrap Icons](https://github.com/twbs/icons), used under the MIT licence below.
 
 ```
