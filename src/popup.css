@@ -19,6 +19,12 @@
   }
 }
 
+/* An author `display` (e.g. .panel { display: flex }) outranks the UA sheet's
+   [hidden] rule, so the attribute needs to win explicitly. */
+[hidden] {
+  display: none !important;
+}
+
 body {
   width: 340px;
   margin: 0;
@@ -71,6 +77,13 @@ button.icon.active {
   border-color: var(--accent);
 }
 
+.title {
+  align-self: center;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .panel {
   display: flex;
   flex-direction: column;
@@ -107,7 +120,8 @@ button.icon.active {
   flex: 1;
 }
 
-#status {
+#status,
+#settings-status {
   margin: 8px 0 0;
   padding: 7px 9px;
   border-radius: 7px;
@@ -115,7 +129,8 @@ button.icon.active {
   font-size: 12px;
 }
 
-#status[data-kind='error'] {
+#status[data-kind='error'],
+#settings-status[data-kind='error'] {
   background: color-mix(in srgb, var(--error) 14%, transparent);
   color: var(--error);
 }

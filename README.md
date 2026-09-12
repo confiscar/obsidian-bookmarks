@@ -4,7 +4,7 @@ A small browser extension that keeps your bookmarks in a markdown file inside an
 
 - **★ Save bookmark** — prefills the page name and URL, lets you edit both, appends one line to your file.
 - **Bookmark list** — every markdown link in the file, rendered under the button, refreshed after each save. Click to open.
-- **⚙ Settings** — which file to write to, and how to reach Obsidian.
+- **⚙ Settings** — a page of its own (back button returns to the list) for choosing the file and how to reach Obsidian.
 
 Works in Chrome (and Chromium: Edge, Brave, …) and Firefox from one codebase.
 
@@ -48,7 +48,7 @@ No dependencies, no network access — it just copies `src/` into `dist/chrome` 
 
 ### 4. Configure
 
-Click the extension icon, then **⚙**:
+Click the extension icon, then **⚙** (the **←** button returns to your bookmarks):
 
 | Field | Value |
 | --- | --- |

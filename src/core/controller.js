@@ -34,20 +34,28 @@ export function createController({ port, createStore, document: doc = globalThis
     }
   };
 
-  /** @param {'list' | 'save' | 'settings'} view */
+  /**
+   * `save` is a panel on the main page; `settings` is a page of its own, with a
+   * back button, so the two are not the same kind of thing.
+   * @param {'list' | 'save' | 'settings'} view
+   */
   function setView(view) {
+    const settings = view === 'settings';
+    ui.mainView.hidden = settings;
+    ui.settingsView.hidden = !settings;
     ui.saveForm.hidden = view !== 'save';
-    ui.settingsForm.hidden = view !== 'settings';
     ui.star.setAttribute('aria-expanded', String(view === 'save'));
-    if (view !== 'settings') ui.settingsToggle.classList.remove('active');
-    else ui.settingsToggle.classList.add('active');
+    ui.settingsToggle.classList.toggle('active', settings);
     if (view === 'save') ui.name.focus();
   }
 
   function render() {
-    ui.status.hidden = !state.status;
-    ui.status.textContent = state.status?.text ?? '';
-    ui.status.dataset.kind = state.status?.kind ?? '';
+    // One status, shown on whichever page is open.
+    for (const node of [ui.status, ui.settingsStatus]) {
+      node.hidden = !state.status;
+      node.textContent = state.status?.text ?? '';
+      node.dataset.kind = state.status?.kind ?? '';
+    }
 
     ui.list.replaceChildren(...state.bookmarks.map(renderItem));
     // An error already explains the empty list; don't also claim there is none.
@@ -140,12 +148,17 @@ export function createController({ port, createStore, document: doc = globalThis
     setStatus(failure ? { kind: 'error', text: failure } : { kind: 'info', text: `Saved “${name}”.` });
   }
 
-  async function openSettings() {
+  function openSettings() {
     ui.apiBase.value = state.settings.apiBase;
     ui.apiKey.value = state.settings.apiKey;
     ui.filePath.value = state.settings.filePath;
     setStatus(null);
     setView('settings');
+  }
+
+  function closeSettings() {
+    setStatus(null);
+    setView('list');
   }
 
   async function saveSettings() {
@@ -200,8 +213,12 @@ export function createController({ port, createStore, document: doc = globalThis
   return {
     async init() {
       ui = {
+        mainView: doc.getElementById('main-view'),
+        settingsView: doc.getElementById('settings-view'),
         star: doc.getElementById('star'),
         settingsToggle: doc.getElementById('settings-toggle'),
+        settingsBack: doc.getElementById('settings-back'),
+        settingsStatus: doc.getElementById('settings-status'),
         saveForm: doc.getElementById('save-form'),
         name: doc.getElementById('name'),
         url: doc.getElementById('url'),
@@ -212,7 +229,6 @@ export function createController({ port, createStore, document: doc = globalThis
         apiKey: doc.getElementById('api-key'),
         filePath: doc.getElementById('file-path'),
         settingsSave: doc.getElementById('settings-save'),
-        settingsCancel: doc.getElementById('settings-cancel'),
         testConnection: doc.getElementById('test-connection'),
         grantAccess: doc.getElementById('grant-access'),
         status: doc.getElementById('status'),
@@ -232,21 +248,12 @@ export function createController({ port, createStore, document: doc = globalThis
         setStatus(null);
         setView('list');
       });
-      ui.settingsToggle.addEventListener('click', () => {
-        if (ui.settingsForm.hidden) openSettings();
-        else {
-          setStatus(null);
-          setView('list');
-        }
-      });
+      ui.settingsToggle.addEventListener('click', openSettings);
       ui.settingsForm.addEventListener('submit', (event) => {
         event.preventDefault();
         saveSettings();
       });
-      ui.settingsCancel.addEventListener('click', () => {
-        setStatus(null);
-        setView('list');
-      });
+      ui.settingsBack.addEventListener('click', closeSettings);
       ui.testConnection.addEventListener('click', testConnection);
       ui.grantAccess.addEventListener('click', grantAccess);
 
