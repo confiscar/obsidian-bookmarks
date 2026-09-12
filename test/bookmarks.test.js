@@ -1,13 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  appendBookmark,
-  escapeName,
-  formatBookmark,
-  normalizeUrl,
-  parseBookmarks,
-} from '../src/core/bookmarks.js';
+import { escapeName, formatBookmark, normalizeUrl, parseBookmarks } from '../src/core/bookmarks.js';
 
 test('parseBookmarks pulls links out in file order', () => {
   const markdown = [
@@ -57,22 +51,18 @@ test('formatBookmark escapes characters that would break the link', () => {
   );
 });
 
-test('appendBookmark adds exactly one trailing newline', () => {
-  const bookmark = { name: 'Example', url: 'https://example.com' };
-
-  assert.equal(appendBookmark('', bookmark), '- [Example](https://example.com)\n');
-  assert.equal(appendBookmark('  \n\n', bookmark), '- [Example](https://example.com)\n');
+test('formatBookmark respects the bullet the file already uses', () => {
   assert.equal(
-    appendBookmark('# Bookmarks\n\n- [Old](https://old.test)', bookmark),
-    '# Bookmarks\n\n- [Old](https://old.test)\n- [Example](https://example.com)\n',
+    formatBookmark({ name: 'Example', url: 'https://example.com' }, '*'),
+    '* [Example](https://example.com)',
   );
 });
 
 test('formatting then parsing round-trips a bookmark, with the URL percent-encoded', () => {
   const bookmark = { name: 'A ] tricky (one)', url: 'https://example.com/a_(b)' };
-  const markdown = appendBookmark('', bookmark);
+  const line = formatBookmark(bookmark);
 
-  assert.deepEqual(parseBookmarks(markdown), [
+  assert.deepEqual(parseBookmarks(line), [
     { name: 'A ] tricky (one)', url: 'https://example.com/a_%28b%29' },
   ]);
 });

@@ -9,20 +9,41 @@ const options = Object.fromEntries(
 
 const apiKey = options.key ?? 'test-key';
 
+const headers = [
+  '## Development',
+  '',
+  '* [CSS Gradient](https://cssgradient.io/)',
+  '### Guides',
+  '* [Tania Rascia](https://www.taniarascia.com/)',
+  '## Music',
+  '',
+  '### Production',
+  '* [OneMotion](https://www.onemotion.com/chord-player/)',
+  '### Listen',
+  '* [Spotify](https://open.spotify.com/)',
+  '',
+  '# Piracy',
+  '* [FreeMediaHeckYeah](https://fmhy.net/)',
+  '## Shopping',
+  '',
+  '* [Amazon](https://www.amazon.co.uk/)',
+  '',
+];
+
 const server = await startFakeObsidian({
   apiKey,
   port: Number(options.port ?? 27123),
   files: {
     'bookmarks.md': '# Bookmarks\n\n- [Existing](https://existing.test)\n',
-    'Bookmarks/Weblinks.md': '# Weblinks\n\n- [Queued](https://queued.test)\n',
+    'Bookmarks/Weblinks.md': headers.join('\n'),
     'Bookmarks/ReadLater.md': '# Read later\n',
-    'Bookmarks/export_bookmarks.py': '',
   },
 });
 
 console.log(`fake Obsidian listening on ${server.url}`);
 console.log(`  API key: ${apiKey}`);
-console.log('  vault:   bookmarks.md, Bookmarks/Weblinks.md, Bookmarks/ReadLater.md');
+console.log('  vault:   bookmarks.md (flat), Bookmarks/Weblinks.md (## and ### folders,');
+console.log('           plus an "# Piracy" h1 and Bookmarks/ReadLater.md empty)');
 console.log('           set the bookmark file to "Bookmarks" to see the folder error');
 
 for (const signal of ['SIGINT', 'SIGTERM']) {

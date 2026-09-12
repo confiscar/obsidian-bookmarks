@@ -99,15 +99,22 @@ export async function startFakeObsidian({
         return;
       }
 
+      if (name === '') {
+        json(405, { message: 'Request method is valid only for files', errorCode: 40510 });
+        return;
+      }
+      if (isDirectory(name)) {
+        json(500, { message: 'File already exists.', errorCode: 50001 });
+        return;
+      }
+
+      if (req.method === 'PUT') {
+        vault.set(name, body);
+        res.writeHead(200).end();
+        return;
+      }
+
       if (req.method === 'POST') {
-        if (name === '') {
-          json(405, { message: 'Request method is valid only for files', errorCode: 40510 });
-          return;
-        }
-        if (isDirectory(name)) {
-          json(500, { message: 'File already exists.', errorCode: 50001 });
-          return;
-        }
         vault.set(name, (vault.get(name) ?? '') + body);
         res.writeHead(204).end();
         return;

@@ -139,6 +139,29 @@ button.icon.active {
   text-align: center;
 }
 
+.tools:not([hidden]) {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.tools button {
+  flex: 1;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.hint {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+#bookmark-group[data-unknown] {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+
 #bookmark-list {
   margin: 8px 0 0;
   padding: 0;
@@ -148,8 +171,45 @@ button.icon.active {
 #bookmark-list li {
   display: flex;
   flex-direction: column;
-  padding: 6px 8px;
+  padding: 6px 8px 6px calc(8px + var(--depth, 0) * 14px);
   border-radius: 7px;
+}
+
+#bookmark-list li.group {
+  flex-direction: row;
+  gap: 6px;
+  align-items: baseline;
+  color: var(--muted);
+}
+
+.group-toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.group-toggle::before {
+  content: '▾';
+  display: inline-block;
+  width: 12px;
+  color: var(--muted);
+}
+
+.group-toggle[aria-expanded='false']::before {
+  content: '▸';
+}
+
+.group-toggle:hover {
+  color: var(--accent);
+}
+
+#bookmark-list .count {
+  font-size: 11px;
 }
 
 #bookmark-list li:hover {

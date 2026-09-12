@@ -37,10 +37,11 @@ export function escapeUrl(url) {
 
 /**
  * @param {Bookmark} bookmark
+ * @param {string} [marker] bullet character, so new items match the ones already in the file
  * @returns {string} the bookmark as a markdown list item
  */
-export function formatBookmark({ name, url }) {
-  return `- [${escapeName(name)}](${escapeUrl(url)})`;
+export function formatBookmark({ name, url }, marker = '-') {
+  return `${marker} [${escapeName(name)}](${escapeUrl(url)})`;
 }
 
 /**
@@ -60,16 +61,4 @@ export function normalizeUrl(input) {
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
   return url.href;
-}
-
-/**
- * @param {string} markdown current note contents; an empty file is fine
- * @param {Bookmark} bookmark
- * @returns {string} the note contents with the bookmark appended as the last line
- */
-export function appendBookmark(markdown, bookmark) {
-  const existing = typeof markdown === 'string' ? markdown : '';
-  const line = formatBookmark(bookmark);
-  if (!existing.trim()) return `${line}\n`;
-  return `${existing.replace(/\s+$/, '')}\n${line}\n`;
 }

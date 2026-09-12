@@ -2,8 +2,8 @@
 
 A small browser extension that keeps your bookmarks in a markdown file inside an Obsidian vault.
 
-- **★ Save bookmark** — prefills the page name and URL, lets you edit both, appends one line to your file.
-- **Bookmark list** — every markdown link in the file, rendered under the button, refreshed after each save. Click to open.
+- **★ Save bookmark** — prefills the page name, URL and folder, lets you edit all three, and writes one line into the note.
+- **Bookmark list** — your headings as folders, open by default, with **Open all** / **Close all**. Click a bookmark to open it.
 - **⚙ Settings** — a page of its own (back button returns to the list) for choosing the file and how to reach Obsidian.
 
 Works in Chrome (and Chromium: Edge, Brave, …) and Firefox from one codebase.
@@ -11,6 +11,8 @@ Works in Chrome (and Chromium: Edge, Brave, …) and Firefox from one codebase.
 ## How it works
 
 The extension does not touch your filesystem. It talks to the [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) community plugin over `127.0.0.1`, which means **Obsidian is the only writer of the vault file** — your open editor, Obsidian Sync, and other tooling never get clobbered by the extension writing behind Obsidian's back.
+
+Putting a bookmark in a folder means the note is read, the new lines are placed in it, and the result is written back — the read happens immediately before the write, so the only gap is one round trip over loopback.
 
 ```
 popup ──fetch──▶ Obsidian Local REST API (127.0.0.1:27123) ──▶ vault/bookmarks.md
@@ -66,22 +68,38 @@ On Firefox, host permissions are opt-in: if the list stays empty, click **Reques
 
 1. Browse to a page.
 2. Click the toolbar icon, then **★ Save bookmark**.
-3. Adjust the name and URL if you want, and press **Save**.
+3. Adjust the name, URL and folder, then press **Save**.
 
-The line is appended to your file and the list below refreshes:
+The folder field lists every folder already in the file and defaults to `Unsorted`. Type a name that does not exist yet — or a path such as `Music/Djing` — and the headings it needs are written along with the bookmark. The list refreshes, and the note only ever gains the lines it needs:
 
 ```md
-# Bookmarks
+## Music
 
-- [Some article](https://example.com/article)
-- [Another one](https://other.test/)
+### Production
+* [Chord player](https://chords.test/player)
 ```
 
 Anything else already in the file — headings, notes, tags, other links — is left untouched. Only the trailing newline and the new line are ever added.
 
 ### What the list shows
 
-Every `[name](http://…)` or `[name](https://…)` link in the file, in file order: images (`![alt](…)`), wikilinks (`[[…]]`), and non-http links (`mailto:`, `file:`, …) are ignored. Names are un-escaped on read and escaped on write, so a name containing `]` round-trips. Nothing is deduplicated and nothing is deleted.
+Every `[name](http://…)` or `[name](https://…)` link in the file: images (`![alt](…)`), wikilinks (`[[…]]`), and non-http links (`mailto:`, `file:`, …) are ignored. Links above the first heading are listed at the top. Names are un-escaped on read and escaped on write, so a name containing `]` round-trips. Nothing is deduplicated and nothing is deleted.
+
+### Folders
+
+Headings are folders, nested by their level and shown as their path — `Music/Production`. Every folder starts open, and **Open all** / **Close all** act on the whole tree; opening a folder opens everything inside it too, which is why a collapsed root comes back with its subfolders expanded.
+
+The **root level is the level your file opens with**. A note that starts at `##` has `##` top-level folders and `###` children; a note that opens with a title (`# My links`) treats that title as the top-level folder with the `##` sections inside it. New top-level folders are written at that same level.
+
+A new top-level folder goes at the end of the file — unless a *shallower* heading is still open there (a stray `# Piracy` in a `##` file, say), in which case it is written above that heading so it stays top level instead of being swallowed by it.
+
+Insertion details worth knowing, because they are visible in the file:
+
+- Folders you type are matched case-insensitively (`music/production` finds `Music/Production`) and the note keeps the file's own spelling.
+- A bookmark goes at the end of its folder's own list, **above** that folder's subfolders.
+- A newly created subfolder is appended **after** the subfolders already there.
+- New items reuse the bullet character the file already uses, `*` or `-`.
+- Headings and links inside fenced code blocks are ignored.
 
 ## Development
 
@@ -96,7 +114,7 @@ To work without Obsidian running (or without touching your vault), start the bun
 node scripts/fake-obsidian.mjs --port=27123 --key=test-key
 ```
 
-It implements the three endpoints the extension uses and keeps the "vault" in memory, seeding `bookmarks.md` plus a `Bookmarks/` folder holding `Weblinks.md` and `ReadLater.md` — so you can exercise both a good target and the folder mistake. Point the extension at it with API base `http://127.0.0.1:27123` and API key `test-key`.
+It implements the endpoints the extension uses and keeps the "vault" in memory: a flat `bookmarks.md`, plus `Bookmarks/Weblinks.md` seeded with `##` and `###` folders, `*` bullets and an `# Piracy` outlier — close enough to a real note to exercise folders, creation and insertion. Point the extension at it with API base `http://127.0.0.1:27123` and API key `test-key`, and set the bookmark file to `Bookmarks/Weblinks.md`.
 
 It mirrors the real plugin's awkward corners on purpose: a folder is listed as `{"files":[…]}` with directories suffixed `/`, and a write aimed at a folder answers exactly what Obsidian answers — `500 {"message":"File already exists.","errorCode":50001}`.
 
@@ -109,9 +127,11 @@ src/
     index.html            main view (save + list) and settings view
     index.css
     index.js              picks a platform port, starts the controller
-    controller.js         state machine + DOM rendering
+    controller.js         state machine + the save/settings flows
+    bookmark-list.js      renders the folder tree
   core/                   browser-agnostic domain logic
     bookmarks.js          markdown links ⇄ bookmarks, URL normalization
+    bookmark-tree.js      headings ⇄ folder tree, and placing a bookmark in one
     settings.js           defaults, normalization, problems
     vault-path.js         resolves a typed path against the vault's real folders
     obsidian-file-store.js  read/append a note over the Local REST API
@@ -155,7 +175,8 @@ Implement these five methods and select the adapter in `src/popup/index.js`:
 
 ## Limits of this version
 
-- Appends only: no editing, deleting, reordering, folders or tags yet.
+- Adds only: nothing is renamed, moved or deleted from the popup.
+- Folders come from headings; markdown stops at six levels, so a deeper path is refused rather than flattened.
 - The whole file is re-read (and every link re-parsed) on each refresh — fine for a few thousand lines.
 - No duplicate detection, and no conflict handling beyond "Obsidian is the only writer".
 - Requires Obsidian to be running; closing it makes the list empty and saves fail.

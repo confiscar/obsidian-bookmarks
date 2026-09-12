@@ -1,5 +1,7 @@
-import { formatBookmark, normalizeUrl, parseBookmarks } from '../core/bookmarks.js';
+import { normalizeUrl } from '../core/bookmarks.js';
+import { allGroupIds, groupIds, insertBookmark, parseBookmarkTree } from '../core/bookmark-tree.js';
 import { DEFAULT_SETTINGS, findSettingsProblems, normalizeSettings } from '../core/settings.js';
+import { renderBookmarkList } from './bookmark-list.js';
 
 /**
  * @typedef {object} PlatformPort
@@ -15,9 +17,11 @@ import { DEFAULT_SETTINGS, findSettingsProblems, normalizeSettings } from '../co
 /**
  * @typedef {object} FileStore
  * @property {() => Promise<string>} readText contents of the bookmark note; '' when it does not exist
- * @property {(line: string) => Promise<void>} appendLine add one line, creating the note if needed
+ * @property {(text: string) => Promise<void>} writeText store the full note, creating it if needed
  * @property {() => Promise<string | null>} findTargetProblem null when the configured note is usable
  */
+
+const DEFAULT_GROUP = 'Unsorted';
 
 /**
  * @param {object} options
@@ -29,7 +33,8 @@ import { DEFAULT_SETTINGS, findSettingsProblems, normalizeSettings } from '../co
 export function createController({ port, createStore, document: doc = globalThis.document }) {
   const state = {
     settings: { ...DEFAULT_SETTINGS },
-    bookmarks: [],
+    tree: parseBookmarkTree(''),
+    collapsed: new Set(),
     status: null,
   };
   const store = createStore(() => state.settings);
@@ -67,51 +72,49 @@ export function createController({ port, createStore, document: doc = globalThis
       element.dataset.kind = state.status?.kind ?? '';
     }
 
-    ui.list.replaceChildren(...state.bookmarks.map(renderItem));
-    ui.emptyList.hidden = state.bookmarks.length > 0 || state.status?.kind === 'error';
-  }
-
-  /** @param {{ name: string, url: string }} bookmark */
-  function renderItem(bookmark) {
-    const item = doc.createElement('li');
-
-    const link = doc.createElement('a');
-    link.href = bookmark.url;
-    link.rel = 'noreferrer';
-    link.textContent = bookmark.name;
-    link.title = bookmark.url;
-    link.addEventListener('click', (event) => {
-      event.preventDefault();
-      port.openUrl(bookmark.url);
+    renderBookmarkList({
+      document: doc,
+      container: ui.list,
+      tree: state.tree,
+      collapsed: state.collapsed,
+      onOpenBookmark: (url) => port.openUrl(url),
+      onToggleGroup: toggleGroup,
     });
 
-    const hostname = doc.createElement('span');
-    hostname.className = 'host';
-    hostname.textContent = hostnameOf(bookmark.url);
+    const isEmpty = !state.tree.loose.length && !state.tree.groups.length;
+    ui.emptyList.hidden = !isEmpty || state.status?.kind === 'error';
+    ui.listTools.hidden = !state.tree.groups.length;
 
-    item.append(link, hostname);
-    return item;
+    const folderIds = allGroupIds(state.tree.groups);
+    ui.groupOptions.replaceChildren(
+      ...folderIds.map((id) => {
+        const option = doc.createElement('option');
+        option.value = id;
+        return option;
+      }),
+    );
+    if (!folderIds.includes(ui.group.value)) ui.group.dataset.unknown = 'true';
+    else delete ui.group.dataset.unknown;
   }
 
-  /**
-   * @param {string} url
-   * @returns {string} the host, or '' when the URL cannot be parsed
-   */
-  function hostnameOf(url) {
-    try {
-      return new URL(url).hostname;
-    } catch {
-      return '';
+  /** @param {import('../core/bookmark-tree.js').Group} group */
+  function toggleGroup(group) {
+    const ids = groupIds(group);
+    const closing = !state.collapsed.has(group.id);
+    for (const id of ids) {
+      if (closing) state.collapsed.add(id);
+      else state.collapsed.delete(id);
     }
+    render();
   }
 
   /** Re-reads the note; throws so each caller can decide what to report. */
   async function reloadBookmarks() {
     setBusy(true);
     try {
-      state.bookmarks = parseBookmarks(await store.readText());
+      state.tree = parseBookmarkTree(await store.readText());
     } catch (error) {
-      state.bookmarks = [];
+      state.tree = parseBookmarkTree('');
       throw error;
     } finally {
       setBusy(false);
@@ -123,6 +126,7 @@ export function createController({ port, createStore, document: doc = globalThis
     const tab = await port.getActiveTab().catch(() => null);
     ui.name.value = (tab?.title ?? '').trim();
     ui.url.value = normalizeUrl(tab?.url) ? tab.url : '';
+    ui.group.value = DEFAULT_GROUP;
     setStatus(null);
     showView('newBookmark');
     ui.name.select();
@@ -134,10 +138,19 @@ export function createController({ port, createStore, document: doc = globalThis
       setStatus(failure('That is not a valid http(s) URL.'));
       return;
     }
+    const folder = ui.group.value.trim();
+    if (!folder) {
+      setStatus(failure('Choose a folder, or type a new one.'));
+      return;
+    }
     const name = ui.name.value.trim() || url;
 
+    let groupId;
     try {
-      await store.appendLine(formatBookmark({ name, url }));
+      const markdown = await store.readText();
+      const updated = insertBookmark(markdown, { path: folder, bookmark: { name, url } });
+      await store.writeText(updated.markdown);
+      groupId = updated.groupId;
       await reloadBookmarks();
     } catch (error) {
       setStatus(failure(error.message));
@@ -147,7 +160,8 @@ export function createController({ port, createStore, document: doc = globalThis
     showView('bookmarks');
     ui.name.value = '';
     ui.url.value = '';
-    setStatus(info(`Saved “${name}”.`));
+    ui.group.value = DEFAULT_GROUP;
+    setStatus(info(`Saved “${name}” to ${groupId}.`));
   }
 
   function openSettings() {
@@ -228,6 +242,7 @@ export function createController({ port, createStore, document: doc = globalThis
         status: element('status'),
         settingsStatus: element('settings-status'),
         emptyList: element('empty-list'),
+        listTools: element('list-tools'),
         list: element('bookmark-list'),
         saveBookmark: element('save-bookmark'),
         openSettings: element('open-settings'),
@@ -236,6 +251,10 @@ export function createController({ port, createStore, document: doc = globalThis
         cancelBookmark: element('cancel-bookmark'),
         name: element('bookmark-name'),
         url: element('bookmark-url'),
+        group: element('bookmark-group'),
+        groupOptions: element('group-options'),
+        expandAll: element('expand-all'),
+        collapseAll: element('collapse-all'),
         backToBookmarks: element('back-to-bookmarks'),
         settingsForm: element('settings-form'),
         saveSettings: element('save-settings'),
@@ -264,6 +283,14 @@ export function createController({ port, createStore, document: doc = globalThis
       ui.cancelBookmark.addEventListener('click', () => {
         setStatus(null);
         showView('bookmarks');
+      });
+      ui.expandAll.addEventListener('click', () => {
+        state.collapsed.clear();
+        render();
+      });
+      ui.collapseAll.addEventListener('click', () => {
+        state.collapsed = new Set(allGroupIds(state.tree.groups));
+        render();
       });
       ui.openSettings.addEventListener('click', openSettings);
       ui.backToBookmarks.addEventListener('click', closeSettings);

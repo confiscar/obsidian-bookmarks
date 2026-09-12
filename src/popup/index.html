@@ -21,6 +21,10 @@
         <input id="bookmark-name" autocomplete="off" placeholder="Bookmark name" />
         <label for="bookmark-url">URL</label>
         <input id="bookmark-url" autocomplete="off" spellcheck="false" inputmode="url" placeholder="https://example.com" />
+        <label for="bookmark-group">Folder</label>
+        <input id="bookmark-group" list="group-options" autocomplete="off" spellcheck="false" placeholder="Unsorted" />
+        <datalist id="group-options"></datalist>
+        <p class="hint">Pick a folder, or type a new one — <code>Music/Production</code> nests.</p>
         <div class="row">
           <button id="confirm-bookmark" type="submit" class="primary">Save</button>
           <button id="cancel-bookmark" type="button">Cancel</button>
@@ -29,6 +33,10 @@
 
       <p id="status" role="status" hidden></p>
       <p id="empty-list" class="empty" hidden>No bookmarks found yet.</p>
+      <div id="list-tools" class="tools" hidden>
+        <button id="expand-all" type="button">Open all</button>
+        <button id="collapse-all" type="button">Close all</button>
+      </div>
       <ul id="bookmark-list"></ul>
     </div>
 

@@ -33,18 +33,26 @@ test('readText returns file contents and authenticates', async (t) => {
   assert.equal(server.requests.at(-1).authorization, 'Bearer test-key');
 });
 
-test('appendLine creates the file, then appends without losing content', async (t) => {
+test('writeText stores the whole note, creating it when it does not exist', async (t) => {
   const server = await startFakeObsidian();
   t.after(() => server.close());
   const store = await storeFor(server);
 
-  await store.appendLine('- [A](https://a.test)');
-  await store.appendLine('- [B](https://b.test)');
+  await store.writeText('## Music\n\n* [A](https://a.test)\n');
 
-  assert.equal(await store.readText(), '- [A](https://a.test)\n- [B](https://b.test)\n');
-  const write = server.requests.filter((request) => request.method === 'POST').at(-1);
+  assert.equal(await store.readText(), '## Music\n\n* [A](https://a.test)\n');
+  const write = server.requests.filter((request) => request.method === 'PUT').at(-1);
+  assert.equal(write.path, '/vault/bookmarks.md');
   assert.equal(write.contentType, 'text/markdown');
-  assert.ok(write.body.endsWith('\n'));
+});
+
+test('writeText replaces what the note already held', async (t) => {
+  const server = await startFakeObsidian({ files: { 'bookmarks.md': 'stale\n' } });
+  t.after(() => server.close());
+  const store = await storeFor(server);
+
+  await store.writeText('fresh\n');
+  assert.equal(await store.readText(), 'fresh\n');
 });
 
 test('nested file paths are percent-encoded per segment', async (t) => {
@@ -70,15 +78,15 @@ test('a folder target is refused instead of read as an empty list', async (t) =>
   assert.match(await store.findTargetProblem(), /is a folder in your vault/);
 });
 
-test('appending to a folder is refused before anything is written', async (t) => {
+test('writing to a folder is refused before anything is sent', async (t) => {
   const server = await startFakeObsidian({ files: { 'Bookmarks/Weblinks.md': 'x' } });
   t.after(() => server.close());
   const store = await storeFor(server, { filePath: 'Bookmarks' });
 
-  const error = await store.appendLine('- [A](https://a.test)').catch((caught) => caught);
+  const error = await store.writeText('- [A](https://a.test)\n').catch((caught) => caught);
   assert.ok(error instanceof FileStoreError);
   assert.deepEqual(
-    server.requests.filter((request) => request.method === 'POST'),
+    server.requests.filter((request) => request.method === 'PUT'),
     [],
   );
 });
@@ -89,13 +97,13 @@ test('a differently-spelled path still reads and saves the real note', async (t)
   const store = await storeFor(server, { filePath: 'bookmarks/weblinks.md' });
 
   assert.match(await store.findTargetProblem(), /Your vault has “Bookmarks\/Weblinks\.md”/);
-  await store.appendLine('- [A](https://a.test)');
+  await store.writeText('# Weblinks\n* [A](https://a.test)\n');
 
-  const write = server.requests.filter((request) => request.method === 'POST').at(-1);
+  const write = server.requests.filter((request) => request.method === 'PUT').at(-1);
   assert.equal(write.path, '/vault/Bookmarks/Weblinks.md');
-  assert.equal(server.vault.get('Bookmarks/Weblinks.md'), '# Weblinks\n- [A](https://a.test)\n');
+  assert.equal(server.vault.get('Bookmarks/Weblinks.md'), '# Weblinks\n* [A](https://a.test)\n');
   assert.equal(server.vault.size, 1);
-  assert.equal(await store.readText(), '# Weblinks\n- [A](https://a.test)\n');
+  assert.equal(await store.readText(), '# Weblinks\n* [A](https://a.test)\n');
 });
 
 test('a 500 from the plugin is surfaced with its own message', async (t) => {
@@ -116,7 +124,7 @@ test('a 500 from the plugin is surfaced with its own message', async (t) => {
     getSettings: () => ({ apiBase: `http://127.0.0.1:${port}`, apiKey: 'k', filePath: 'x.md' }),
   });
 
-  const error = await store.appendLine('- [A](https://a.test)').catch((caught) => caught);
+  const error = await store.writeText('- [A](https://a.test)\n').catch((caught) => caught);
   assert.match(
     error.message,
     /Obsidian returned 500 Internal Server Error: File already exists\. \(errorCode 50000\)/,

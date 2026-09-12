@@ -25,7 +25,7 @@ const parseJson = (text) => {
  * @returns {{
  *   ping: () => Promise<boolean>,
  *   readText: () => Promise<string>,
- *   appendLine: (line: string) => Promise<void>,
+ *   writeText: (text: string) => Promise<void>,
  *   findTargetProblem: () => Promise<string | null>,
  * }}
  */
@@ -124,15 +124,19 @@ export function createFileStore({ getSettings }) {
       return isFolderListing ? '' : response.text();
     },
 
-    /** @param {string} line one markdown list item; a trailing newline is optional */
-    async appendLine(line) {
+    /**
+     * Replaces the whole note, creating it when it does not exist yet. Callers read first and
+     * write immediately, so the gap in which Obsidian could change the file is a round trip.
+     * @param {string} text full contents to store
+     */
+    async writeText(text) {
       const { resolvedPath, problem } = await locateFile();
       if (!resolvedPath) throw new FileStoreError(problem);
 
       await sendRequest(fileEndpoint(resolvedPath), {
-        method: 'POST',
+        method: 'PUT',
         headers: { ...authorization(), 'Content-Type': 'text/markdown' },
-        body: line.endsWith('\n') ? line : `${line}\n`,
+        body: text,
       });
     },
 
