@@ -18,7 +18,6 @@ function fakeChrome({ tabs = [{ url: 'https://x.test', title: 'X' }], stored = {
       getManifest: () => ({ host_permissions: HOST_PERMISSIONS }),
       getURL: (path) => {
         calls.push(['runtime.getURL', path]);
-        // Chrome concatenates rather than resolving, so a leading slash would be doubled.
         return `chrome-extension://fakeid/${path}`;
       },
     },

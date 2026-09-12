@@ -21,10 +21,6 @@ function countBookmarks(group) {
 }
 
 /**
- * Renders the pinned bookmarks, then the bookmarks that sit above any heading, then the folder
- * tree. Folders are open unless their id is in `collapsed`; nesting is drawn with the `--depth`
- * custom property.
- *
  * @param {object} options
  * @param {Document} options.document
  * @param {HTMLElement} options.container the list element to fill

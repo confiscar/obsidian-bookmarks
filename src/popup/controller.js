@@ -17,6 +17,11 @@ import { bookIcon, clockIcon, gearIcon } from './icons.js';
 
 const PIN_KEY = 'pinned';
 const READ_KEY = 'read';
+const UNREAD_SECTION = 'Unread';
+const READ_SECTION = 'Read';
+
+/** @param {string} name @returns {string} the collapse key of that read later section */
+const readLaterSectionId = (name) => `read:${name.toLowerCase()}`;
 
 /**
  * @typedef {object} PlatformPort
@@ -64,8 +69,6 @@ export function createController({ port, createStore, document: doc = globalThis
     status: null,
   };
   const store = createStore(() => state.settings);
-  // The read later note is a second note of the same shape, so it is the same store pointed at
-  // another path in the vault. Nothing else about it is special.
   const readLaterStore = createStore(() => ({
     ...state.settings,
     filePath: state.settings.readLaterPath,
@@ -180,10 +183,6 @@ export function createController({ port, createStore, document: doc = globalThis
     render();
   }
 
-  /**
-   * Re-reads both notes; throws so each caller can decide what to report.
-   * @returns {Promise<void>}
-   */
   async function reload() {
     setBusy(true);
     try {
@@ -210,11 +209,7 @@ export function createController({ port, createStore, document: doc = globalThis
     }
   }
 
-  /**
-   * The read later note as two sections: what is still waiting, and what has been read. Each
-   * keeps the folders it sits in, and folders with nothing in them drop out.
-   * @returns {import('../core/bookmark-tree.js').BookmarkTree}
-   */
+  /** @returns {import('../core/bookmark-tree.js').BookmarkTree} the note as two sections */
   function readLaterSections() {
     const { tree, read } = state.readLater;
     const isRead = (bookmark) => read.has(urlKey(bookmark.url));
@@ -225,34 +220,32 @@ export function createController({ port, createStore, document: doc = globalThis
       return { rootLevel: tree.rootLevel, listMarker: tree.listMarker, loose: [], groups: [] };
     }
 
-    // Both notes hold folders of the same names, so the read later ones are keyed apart from
-    // the bookmark ones: opening or closing Music in one view leaves the other alone.
-    const keyed = (groups) =>
-      groups.map((group) => ({ ...group, id: `read:${group.id}`, children: keyed(group.children) }));
+    const namespaced = (groups) =>
+      groups.map((group) => ({
+        ...group,
+        id: `read:${group.id}`,
+        children: namespaced(group.children),
+      }));
 
     const section = (name, part) => ({
       name,
       level: 2,
       path: [name],
-      id: `read:${name.toLowerCase()}`,
+      id: readLaterSectionId(name),
       headingLine: -1,
       bookmarks: part.loose,
-      children: keyed(part.groups),
+      children: namespaced(part.groups),
     });
 
     return {
       rootLevel: tree.rootLevel ?? 2,
       listMarker: tree.listMarker,
       loose: [],
-      groups: [section('Unread', unread), section('Read', done)],
+      groups: [section(UNREAD_SECTION, unread), section(READ_SECTION, done)],
     };
   }
 
-  /**
-   * One lookup per site the list shows. Browsers that keep no favicon cache are asked to
-   * capture the icons of the pages that are open first, which is the only chance they get.
-   * @returns {Promise<Map<string, string | null>>}
-   */
+  /** @returns {Promise<Map<string, string | null>>} */
   async function loadIcons() {
     await port.rememberFavicons().catch(() => {});
 
@@ -397,9 +390,6 @@ export function createController({ port, createStore, document: doc = globalThis
   }
 
   /**
-   * Keeps a bookmark's mark with the bookmark when its URL changes: a pinned bookmark stays
-   * pinned, a read one stays read.
-   *
    * @param {string} markdown
    * @param {{ name: string, url: string } | null} editing
    * @param {{ name: string, url: string }} bookmark
@@ -503,7 +493,7 @@ export function createController({ port, createStore, document: doc = globalThis
     const problems = findSettingsProblems(settings);
 
     state.settings = settings;
-    if (!hadReadLater && hasReadLater()) state.collapsed.add('read:read');
+    if (!hadReadLater && hasReadLater()) state.collapsed.add(readLaterSectionId(READ_SECTION));
     try {
       await port.saveSettings(settings);
     } catch (error) {
@@ -648,10 +638,8 @@ export function createController({ port, createStore, document: doc = globalThis
         return;
       }
 
-      // Opening the popup shows the pins and nothing else; folders are opened by hand, or all
-      // at once with Open all. Folders that appear later — from a save, say — open as they did.
       state.collapsed = new Set(allGroupIds(state.tree.groups));
-      state.collapsed.add('read:read');
+      state.collapsed.add(readLaterSectionId(READ_SECTION));
 
       const problems = findSettingsProblems(state.settings);
       if (problems.length) setStatus(info(problems.join(' ')));

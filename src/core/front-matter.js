@@ -8,7 +8,6 @@ const EMPTY_LIST = '[]';
 const VALID_KEY = /^[a-z][a-z0-9_-]*$/;
 
 /**
- * Front matter only counts when the note opens with it, which is also what Obsidian requires.
  * @param {string} markdown
  * @returns {{ start: number, end: number } | null} inclusive line indices of the two `---` fences
  */
@@ -34,9 +33,6 @@ function keyLine(key) {
 }
 
 /**
- * The marks a note keeps about its own bookmarks — `pinned` in the bookmark note, `read` in the
- * read later note. Membership of the list is the state; the URL is the identity.
- *
  * @param {string} markdown
  * @param {string} key front matter key, e.g. `pinned`
  * @returns {{
@@ -87,8 +83,6 @@ export function readMarked(markdown, key) {
 }
 
 /**
- * Adds the bookmark to that front matter list, or removes it when it is already there.
- *
  * @param {string} markdown entire note
  * @param {string} key front matter key, e.g. `read`
  * @param {Bookmark} bookmark

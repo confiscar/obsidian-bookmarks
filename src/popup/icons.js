@@ -1,6 +1,3 @@
-// Glyphs from Bootstrap Icons (MIT, © The Bootstrap Authors) — see THIRD-PARTY.md.
-// https://github.com/twbs/icons/tree/main/icons
-
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 const OUTLINE = {

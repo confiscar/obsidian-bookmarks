@@ -5,14 +5,18 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const sourceDir = join(root, 'src');
 const distDir = join(root, 'dist');
+const notices = join(root, 'THIRD-PARTY.md');
+
+const CHROMIUM_ONLY_PERMISSIONS = ['favicon'];
 
 const adaptManifest = {
   chrome(manifest) {
     delete manifest.browser_specific_settings;
   },
   firefox(manifest) {
-    // The `favicon` permission is Chromium-only; Firefox would not recognise it.
-    manifest.permissions = manifest.permissions.filter((name) => name !== 'favicon');
+    manifest.permissions = manifest.permissions.filter(
+      (name) => !CHROMIUM_ONLY_PERMISSIONS.includes(name),
+    );
   },
 };
 
@@ -21,6 +25,7 @@ for (const [browser, adapt] of Object.entries(adaptManifest)) {
   await rm(outputDir, { recursive: true, force: true });
   await mkdir(outputDir, { recursive: true });
   await cp(sourceDir, outputDir, { recursive: true });
+  await cp(notices, join(outputDir, 'THIRD-PARTY.md'));
 
   const manifestPath = join(outputDir, 'manifest.json');
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));

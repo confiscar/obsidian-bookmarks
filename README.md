@@ -44,7 +44,7 @@ No native messaging host, no background daemon, nothing to keep running except O
 npm run build
 ```
 
-No dependencies, no network access — it just copies `src/` into `dist/chrome` and `dist/firefox` and drops the Firefox-only manifest key from the Chrome build.
+No dependencies, no network access — it copies `src/` into `dist/chrome` and `dist/firefox`, copies `THIRD-PARTY.md` in beside it, and drops the Firefox-only manifest key and the Chromium-only `favicon` permission where they do not belong.
 
 ### 3. Load it
 
@@ -125,7 +125,7 @@ Pinned  2
 
 The pinned rows are the same rows as the ones in the tree, so unpinning either copy removes the line and the two views can never disagree. The section appears once something is pinned and is **open by default** — it is the one thing the popup unfolds for you — and it folds like a folder: click **Pinned** to collapse it, and **Open all** / **Close all** cover it along with everything else.
 
-The pin is an inline SVG rather than an emoji, so it takes the theme's colour and needs no font: outline when unpinned, filled when pinned. It is the `pin`/`pin-fill` pair from [Bootstrap Icons](https://github.com/twbs/icons) (MIT) — see [THIRD-PARTY.md](THIRD-PARTY.md).
+The pin is an inline SVG rather than an emoji, so it takes the theme's colour and needs no font: outline when unpinned, filled when pinned. It sits a fraction below its box centre, because a pin's mass is its head and a box-centred pin reads high beside the label. It is the `pin`/`pin-fill` pair from [Bootstrap Icons](https://github.com/twbs/icons) (MIT) — see [THIRD-PARTY.md](THIRD-PARTY.md), which the build copies into each `dist/` folder beside the glyphs.
 
 ### Favicons
 
@@ -229,6 +229,8 @@ assets/                   the artwork the icons are scaled from
 ```
 
 The rule the folders encode: `core/` and `popup/` never mention `chrome.*` or `browser.*`; `platform/` never contains product logic. The popup loads an adapter and hands it to the controller, which only knows the methods below.
+
+Chrome's MV3 methods answer with a promise when they are called as members, and throw *Illegal invocation* when called detached from their owner — `const get = chrome.storage.local.get` — so the Chrome adapter always keeps its receiver.
 
 ### Icons
 

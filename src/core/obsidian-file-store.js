@@ -124,11 +124,7 @@ export function createFileStore({ getSettings }) {
       return isFolderListing ? '' : response.text();
     },
 
-    /**
-     * Replaces the whole note, creating it when it does not exist yet. Callers read first and
-     * write immediately, so the gap in which Obsidian could change the file is a round trip.
-     * @param {string} text full contents to store
-     */
+    /** @param {string} text full contents to store */
     async writeText(text) {
       const { resolvedPath, problem } = await locateFile();
       if (!resolvedPath) throw new FileStoreError(problem);

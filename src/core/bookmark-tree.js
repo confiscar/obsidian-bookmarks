@@ -49,9 +49,6 @@ function fencedLines(lines) {
 const sameName = (a, b) => a.toLowerCase() === b.toLowerCase();
 
 /**
- * Front matter and code fences are not bookmark content. A pinned entry quotes the same URL as
- * the line it mirrors, so a body scan that read the front matter would find the wrong line.
- *
  * @param {string} markdown
  * @returns {boolean[]} whether each line holds note content
  */
@@ -67,8 +64,6 @@ function contentLines(markdown) {
 }
 
 /**
- * Accepts `'Music/Production'` or `['Music', 'Production']`, and tolerates stray `#`, padding
- * and empty segments so that a typed value can be handed over as-is.
  * @param {string | string[]} path
  * @returns {string[]} heading names, outermost first
  */
@@ -167,10 +162,6 @@ export function allBookmarks(tree) {
 }
 
 /**
- * The same note's structure with only some of its bookmarks in it — how the read later note is
- * split into what has been read and what has not. Folders left empty drop out, since an empty
- * folder in a filtered view says nothing.
- *
  * @param {BookmarkTree} tree
  * @param {(bookmark: Bookmark) => boolean} keep
  * @returns {BookmarkTree} a tree of its own; the groups are new objects, so nothing is shared
@@ -192,9 +183,6 @@ export function filterBookmarks(tree, keep) {
 }
 
 /**
- * Places a bookmark in a folder, appending whatever headings that folder still needs.
- * Everything already in the note is left alone.
- *
  * @param {string} markdown entire note
  * @param {{ path: string | string[], bookmark: Bookmark }} target folder — existing or not
  * @returns {{ markdown: string, groupId: string }} the updated note and the folder it went into
@@ -305,9 +293,6 @@ export function removeBookmark(markdown, url) {
 }
 
 /**
- * Rewrites a bookmark where it stands when it is already in `path`, and moves it into `path`
- * otherwise — which is also how a bookmark that only exists in the front matter gets a line.
- *
  * @param {string} markdown entire note
  * @param {{ url: string, bookmark: Bookmark, path: string | string[] }} change `url` finds the
  *   bookmark being edited; `bookmark` is what it becomes
@@ -326,8 +311,8 @@ export function updateBookmark(markdown, { url, bookmark, path }) {
     current.length === target.length &&
     current.every((name, index) => sameName(name, target[index]));
 
-  // A bookmark already where it belongs keeps its line, and with it its place in the file.
-  if (line !== null && samePath && content[line]) {
+  const alreadyInPlace = line !== null && samePath && content[line];
+  if (alreadyInPlace) {
     const lines = text.split('\n');
     lines[line] = formatBookmark(bookmark, tree.listMarker);
     return { markdown: lines.join('\n'), groupId: current.join('/') };
@@ -339,10 +324,6 @@ export function updateBookmark(markdown, { url, bookmark, path }) {
 }
 
 /**
- * Inserts text at the end of a region: everything after `startLine` up to the first heading
- * that outranks `boundLevel`. That boundary is what keeps a new folder out of the section it
- * would otherwise be swallowed by, and what keeps a folder's own items above its subfolders.
- *
  * @param {string[]} lines mutated in place
  * @param {boolean[]} content which lines hold note content
  * @param {number} startLine heading the region belongs to, or -1 for the whole file

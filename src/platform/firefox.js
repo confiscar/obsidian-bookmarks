@@ -46,7 +46,6 @@ export function createFirefoxPort({ faviconLimit = FAVICON_LIMIT } = {}) {
     },
 
     /**
-     * Firefox has no favicon API, so this answers from the icons `rememberFavicons` captured.
      * @param {string} url
      * @returns {Promise<string | null>}
      */
@@ -54,13 +53,6 @@ export function createFirefoxPort({ faviconLimit = FAVICON_LIMIT } = {}) {
       return (await loadIcons())[siteKey(url)] ?? null;
     },
 
-    /**
-     * Caches the icon of the tab the popup was opened from — `activeTab`, which the popup
-     * already holds, covers `favIconUrl` for that tab, so this asks for no new permission.
-     *
-     * Only `data:` icons are kept: they render without a network request, and an icon URL that
-     * needs the page's cookies would not survive being stored.
-     */
     async rememberFavicons() {
       const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
       const icon = tab?.favIconUrl;

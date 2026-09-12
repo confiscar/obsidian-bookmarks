@@ -102,8 +102,6 @@ button.icon.active {
   border-color: var(--accent);
 }
 
-/* The book fills in with the read later colour while that list is showing: the negative of the
-   header icons around it, so the button says which note the list below it belongs to. */
 #read-later-view.active {
   border-color: transparent;
   background: var(--read-later);
@@ -306,9 +304,6 @@ button.icon.active {
 
 .group-toggle svg {
   display: block;
-  /* A pin's mass is its head, which sits above the middle of its box, so an icon centred
-     by box reads high beside a label: the nudge lands it on the text's optical centre, and
-     the margin keeps a space between it and the label. */
   margin-right: 0.25em;
   transform: translateY(0.15em);
 }

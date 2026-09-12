@@ -30,9 +30,7 @@ const headers = [
   '',
 ];
 
-// The shape of a real read later note: no front matter, `*` bullets, and headings that are
-// still empty — the read mark is what the extension adds to it.
-const readLater = [
+const unmarkedReadLaterNote = [
   '## Development',
   '',
   '* [YouTube](https://www.youtube.com/watch?v=Ilg3gGewQ5U) - What is backpropagation doing?',
@@ -55,7 +53,7 @@ const server = await startFakeObsidian({
   files: {
     'bookmarks.md': '# Bookmarks\n\n- [Existing](https://existing.test)\n',
     'Bookmarks/Weblinks.md': headers.join('\n'),
-    'Bookmarks/ReadLater.md': readLater.join('\n'),
+    'Bookmarks/ReadLater.md': unmarkedReadLaterNote.join('\n'),
   },
 });
 

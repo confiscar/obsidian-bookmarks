@@ -1,6 +1,5 @@
 /** @typedef {{ name: string, url: string }} Bookmark */
 
-// Markdown links only: never images (![alt](url)), never non-http schemes.
 const MARKDOWN_HTTP_LINK = /(?<!!)\[((?:[^[\]\n\\]|\\.)*)\]\(\s*(https?:\/\/[^\s)]+)\s*\)/g;
 
 /** @param {string} char one character of a URL, matched by escapeUrl's class */
@@ -62,9 +61,6 @@ export function urlKey(url) {
 }
 
 /**
- * Favicons belong to a site, not a page, so an icon cached for one page of a site answers for
- * the rest of it.
- *
  * @param {string} url
  * @returns {string} the site a URL belongs to, or the URL itself when it does not parse
  */
