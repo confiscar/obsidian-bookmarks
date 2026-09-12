@@ -138,7 +138,7 @@ When there is nothing to show — Firefox has not seen the site, or the icon fai
 
 ### Read later
 
-With a **Read later file** set, the popup grows two buttons that are easy to tell apart: a **book** in the header, left of **⚙**, which opens the read later list, and a **clock** under **★ Save bookmark**, which saves the page you are on. One looks, one saves — and the book stays lit while you are looking. Clear the path again and both go away.
+With a **Read later file** set, the popup grows two buttons that are easy to tell apart: a **book** in the header, left of **⚙**, which opens the read later list, and a **clock** under **★ Save bookmark**, which saves the page you are on. One looks, one saves — and both say which note you are in: the book stays lit, and the clock turns negative — teal outline and glyph on no fill — while the read later list is showing. Clear the path again and both go away.
 
 **Read later** opens the same form **★ Save bookmark** does, filled in for the page you are on, and files it in the folder you pick — the folder field offers the read later note's own headings, and the button says **Save for later** so there is no doubt which note is about to grow. Saving returns you to the read later list, where the page arrives under **Unread**.
 

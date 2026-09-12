@@ -89,6 +89,18 @@ button.read-later:not([hidden]) {
   display: flex;
 }
 
+/* Filled while you are reading your bookmarks; negative while you are looking at the list,
+   so the button itself says which of the two notes you are in. */
+button.read-later.active {
+  border-color: var(--read-later);
+  background: transparent;
+  color: var(--read-later);
+}
+
+button.read-later.active:hover:not(:disabled) {
+  border-color: var(--read-later);
+}
+
 button.icon {
   display: flex;
   align-items: center;
