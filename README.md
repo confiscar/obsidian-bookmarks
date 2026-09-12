@@ -43,6 +43,8 @@ You can also pin bookmarks! Pin data is transformed into mark down front matter.
 
 You can also reorder by dragging a row. Which gap it lands in is where you hold it, and how deep it goes is how far right you drag — so a bookmark dragged right joins the folder above it, and a folder dragged left comes back out to the top level. A folder lands among folders only, and brings everything under it, every heading in that block gaining or losing a level to match; a bookmark lands wherever you drop it in that folder's own list.
 
+Pinned rows drag among themselves, in the front matter list they come from, and the read later view's rows drag the same way — moving an entry into another folder there, without changing whether it is read. A drag that would not change the order leaves the file exactly as it was.
+
 ## Troubleshooting
 
 - **"Can't reach Obsidian at …"** — Obsidian is not running, the plugin is disabled, or the HTTP server is off. Try **Test connection** in settings.

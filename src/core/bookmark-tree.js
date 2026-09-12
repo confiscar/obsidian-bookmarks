@@ -12,6 +12,8 @@ import { frontMatterRange } from './front-matter.js';
  * @property {number} headingLine 0-based index of the heading line in the file
  * @property {Bookmark[]} bookmarks links directly beneath this heading
  * @property {Group[]} children headings nested deeper
+ * @property {boolean} [section] a heading the note does not have, such as the read later view's
+ *   `Unread` and `Read`, so its path names nothing and nothing can be moved into it
  */
 
 /**

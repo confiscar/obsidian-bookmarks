@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { urlKey } from '../src/core/bookmarks.js';
-import { frontMatterRange, readMarked, toggleMarked } from '../src/core/front-matter.js';
+import { frontMatterRange, moveMarked, readMarked, toggleMarked } from '../src/core/front-matter.js';
 
 const NOTE = ['## Music', '', '* [OneMotion](https://www.onemotion.com/chord-player/)', ''].join('\n');
 const chord = { name: 'Chord player', url: 'https://chords.test/player' };
@@ -150,4 +150,74 @@ test('names with quotes and apostrophes survive the file', () => {
 
   assert.equal(line, "  - '[Dave''s \"best\" song](https://music.test/a%20b)'");
   assert.deepEqual(pins(added).map((e) => e.url), ['https://music.test/a%20b']);
+});
+
+const THREE = lines(
+  '---',
+  'pinned:',
+  "  - '[A](https://a.test/)'",
+  "  - 'just a note'",
+  "  - '[B](https://b.test/)'",
+  "  - '[C](https://c.test/)'",
+  'title: Weblinks',
+  '---',
+  '',
+  '## Music',
+  '',
+);
+
+test('a mark moves up and down the list, around the items that are not links', () => {
+  const down = moveMarked(THREE, PIN, 'https://a.test/', 'https://c.test/').markdown;
+
+  assert.equal(
+    down,
+    lines(
+      '---',
+      'pinned:',
+      "  - 'just a note'",
+      "  - '[B](https://b.test/)'",
+      "  - '[A](https://a.test/)'",
+      "  - '[C](https://c.test/)'",
+      'title: Weblinks',
+      '---',
+      '',
+      '## Music',
+      '',
+    ),
+  );
+  assert.deepEqual(
+    readMarked(down, PIN).entries.map((entry) => entry.name),
+    ['B', 'A', 'C'],
+  );
+
+  const up = moveMarked(down, PIN, 'https://c.test/', 'https://b.test/').markdown;
+  assert.deepEqual(readMarked(up, PIN).entries.map((entry) => entry.name), ['C', 'B', 'A']);
+  assert.ok(up.includes("  - 'just a note'"));
+});
+
+test('a mark sent to the end lands last, and one that is already there changes nothing', () => {
+  const last = moveMarked(THREE, PIN, 'https://a.test/', null).markdown;
+
+  assert.deepEqual(readMarked(last, PIN).entries.map((entry) => entry.name), ['B', 'C', 'A']);
+  assert.equal(moveMarked(last, PIN, 'https://a.test/', null).markdown, last);
+  assert.equal(moveMarked(THREE, PIN, 'https://a.test/', 'https://b.test/').markdown, THREE);
+  assert.deepEqual(
+    readMarked(moveMarked(THREE, PIN, 'https://b.test/', 'https://a.test/').markdown, PIN).entries.map(
+      (entry) => entry.name,
+    ),
+    ['B', 'A', 'C'],
+  );
+});
+
+test('a mark that is not in the list cannot be moved, and neither can one under a bad key', () => {
+  assert.throws(() => moveMarked(THREE, PIN, 'https://nowhere.test/', null), /no pinned mark/);
+  assert.throws(() => moveMarked(THREE, 'Read', 'https://a.test/', null), /front matter key/);
+});
+
+test('a mark dragged onto its own place leaves the note, hand-written items and all, alone', () => {
+  assert.equal(moveMarked(THREE, PIN, 'https://a.test/', 'https://a.test/').markdown, THREE);
+  assert.equal(moveMarked(THREE, PIN, 'https://a.test/', 'https://b.test/').markdown, THREE);
+
+  const twice = moveMarked(THREE, PIN, 'https://c.test/', 'https://b.test/').markdown;
+  assert.equal(moveMarked(twice, PIN, 'https://c.test/', 'https://b.test/').markdown, twice);
 });

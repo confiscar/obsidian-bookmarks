@@ -172,3 +172,35 @@ function withoutEmptiedBlock(lines, key) {
 function yamlString(value) {
   return `'${value.replace(/'/g, "''")}'`;
 }
+/**
+ * Moves one mark to another place in the list — the order the pinned rows above the folders are
+ * shown in.
+ *
+ * @param {string} markdown
+ * @param {string} key front matter key, e.g. `pinned`
+ * @param {string} url the mark to move
+ * @param {string | null} before the URL of the mark it goes above, null to go last
+ * @returns {{ markdown: string }}
+ */
+export function moveMarked(markdown, key, url, before) {
+  const text = String(markdown ?? '');
+  const state = readMarked(text, key);
+  const wanted = urlKey(url);
+  const from = state.entries.findIndex((entry) => urlKey(entry.url) === wanted);
+  if (from === -1) throw new Error(`“${url}” has no ${key} mark to move.`);
+  if (before !== null && urlKey(before) === wanted) return { markdown: text };
+
+  const order = state.entries.map((entry) => urlKey(entry.url)).join('\n');
+  const lines = text.split('\n');
+  const [moved] = lines.splice(state.entries[from].line, 1);
+  const rest = readMarked(lines.join('\n'), key);
+  const target = before === null ? null : rest.entries.find((entry) => urlKey(entry.url) === urlKey(before));
+  const at = target ? target.line : (rest.entries.at(-1)?.line ?? rest.keyLine ?? 0) + 1;
+
+  lines.splice(at, 0, moved);
+  const next = lines.join('\n');
+
+  return readMarked(next, key).entries.map((entry) => urlKey(entry.url)).join('\n') === order
+    ? { markdown: text }
+    : { markdown: next };
+}

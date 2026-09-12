@@ -30,7 +30,7 @@ export function createDragLayer({ list, document: doc, onDrop }) {
     if (event.button !== 0 || drag) return;
 
     const row = rows.find((candidate) => candidate.element === event.target.closest('li'));
-    if (!row) return;
+    if (!row || row.section) return;
 
     const started = { x: event.clientX, y: event.clientY };
     const onMove = (move) => {
@@ -142,8 +142,19 @@ export function createDragLayer({ list, document: doc, onDrop }) {
       url: row.url,
       name: row.name,
       path: row.path,
-      to: { parentPath: target.parentPath, index: target.index },
+      to: { parentPath: target.parentPath, before: beforeOf(row, target.placeBefore) },
     });
+  }
+
+  /**
+   * @param {object} row what is being dragged
+   * @param {object | null} placed the row it will sit above, if any
+   * @returns {string | string[] | null} that row's own name, or null for the end of the list
+   */
+  function beforeOf(row, placed) {
+    if (placed === null) return null;
+    if (row.kind === 'group') return placed.kind === 'group' ? placed.path : null;
+    return placed.kind === 'group' ? null : placed.url;
   }
 
   function cancel() {

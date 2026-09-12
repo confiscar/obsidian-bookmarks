@@ -3,8 +3,8 @@ import {
   DEFAULT_ROOT_LEVEL,
   DEEPEST_LEVEL,
   allBookmarks,
+  allGroupIds,
   contentLineMask,
-  findBookmarkPath,
   headingLevel,
   normalizePath,
   parseBookmarkTree,
@@ -18,22 +18,22 @@ import {
 
 /**
  * @typedef {object} DropRow
- * @property {'group' | 'bookmark'} kind
+ * @property {'group' | 'bookmark' | 'pin'} kind
  * @property {number} top
  * @property {number} bottom
  * @property {number} depth 0 for a top-level folder, one more for each level of nesting
  * @property {string[]} [path] folders: which folder the row is
- * @property {number} [ownBookmarks] folders: how many items sit directly under it
- * @property {boolean} [open] folders: whether its contents are on screen
+ * @property {boolean} [section] folders: a heading the note does not have, so nothing lands in it
+ * @property {string} [url] bookmarks and pins
+ * @property {string} [name] bookmarks and pins
+ * @property {string[]} [parentPath] bookmarks: the folder holding it, `[]` above every heading
  */
 
 /**
  * @typedef {object} DropTarget
  * @property {string[]} parentPath the folder the row lands in, `[]` for the top level
- * @property {number} index where among that folder's own items, or children
  * @property {number} depth the depth the row is drawn at once it is there
- * @property {DropRow | null} placeBefore the row the dragged one would be drawn above, null for
- *   the end of the list
+ * @property {DropRow | null} placeBefore the row the dragged one goes above, null for the end
  */
 
 /**
@@ -41,9 +41,14 @@ import {
  * picks the depth, which is how a tree reads: right to go inside the row above, left to come
  * back out to the top level.
  *
+ * Where it lands is named by the row below the gap rather than counted, because what is on
+ * screen is not always the whole note: the read later view shows two halves of one file, and a
+ * folder's children only appear in the half that holds them. Counting the rows between them
+ * would count the wrong ones.
+ *
  * @param {DropRow[]} rows the rows on screen, in the order they are drawn
  * @param {{
- *   kind: 'group' | 'bookmark',
+ *   kind: 'group' | 'bookmark' | 'pin',
  *   x: number,
  *   y: number,
  *   listLeft: number,
@@ -53,35 +58,47 @@ import {
  * @returns {DropTarget | null} null where that drop is not allowed
  */
 export function resolveDrop(rows, { kind, x, y, listLeft, indent, draggedPath = [] }) {
-  const candidates = kind === 'group' ? rows.filter((row) => row.kind === 'group') : rows;
+  const folders =
+    kind === 'group' ? rows.filter((row) => row.kind === 'group' && row.section !== true) : rows;
+  const candidates = kind === 'pin' ? rows.filter((row) => row.kind === 'pin') : folders;
   if (!candidates.length) return null;
 
   const gap = candidates.findIndex((row) => y < (row.top + row.bottom) / 2);
   const before = gap === -1 ? candidates.length : gap;
 
-  return kind === 'group'
-    ? folderTarget(candidates, before, x - listLeft - 2, indent, draggedPath)
-    : bookmarkTarget(candidates, before);
+  if (kind === 'pin') return pinnedTarget(candidates, before, y);
+  if (kind === 'group') {
+    return folderTarget(folders, before, x - listLeft - 2, indent, draggedPath);
+  }
+  return bookmarkTarget(candidates, before);
 }
 
 /**
- * @param {DropRow[]} rows the rows on screen
+ * @param {DropRow[]} rows every row on screen
  * @param {number} before how many of them sit above the pointer
- * @returns {DropTarget}
+ * @returns {DropTarget | null}
  */
 function bookmarkTarget(rows, before) {
-  const placeBefore = rows[before] ?? null;
-  const ownerAt = rows.slice(0, before).findLastIndex((row) => row.kind === 'group');
-  if (ownerAt === -1) {
-    return { parentPath: [], index: countBetween(rows, 0, before, 'bookmark'), depth: 0, placeBefore };
-  }
+  const owner = rows.slice(0, before).findLast((row) => row.kind === 'group');
+  if (owner?.section) return null;
 
-  const owner = rows[ownerAt];
-  const index = owner.open
-    ? countBetween(rows, ownerAt + 1, before, 'bookmark')
-    : (owner.ownBookmarks ?? 0);
+  return {
+    parentPath: owner?.path ?? [],
+    depth: (owner?.depth ?? -1) + 1,
+    placeBefore: rows[before] ?? null,
+  };
+}
 
-  return { parentPath: owner.path, index, depth: owner.depth + 1, placeBefore };
+/**
+ * @param {DropRow[]} rows the pinned rows, in the order the front matter lists them
+ * @param {number} before how many of them sit above the pointer
+ * @param {number} y
+ * @returns {DropTarget | null} null below the pinned rows, which are not the note's own order
+ */
+function pinnedTarget(rows, before, y) {
+  if (y > rows.at(-1).bottom) return null;
+
+  return { parentPath: [], depth: rows[0].depth, placeBefore: rows[before] ?? null };
 }
 
 /**
@@ -100,12 +117,7 @@ function folderTarget(rows, before, offset, indent, draggedPath) {
   const parentPath = parentAt === -1 ? [] : rows[parentAt].path;
   if (isInside(parentPath, draggedPath)) return null;
 
-  return {
-    parentPath,
-    index: countBetween(rows, parentAt + 1, before, 'group', depth),
-    depth,
-    placeBefore: rows[before] ?? null,
-  };
+  return { parentPath, depth, placeBefore: rows[before] ?? null };
 }
 
 /**
@@ -122,28 +134,12 @@ function lastShallower(rows, end, depth) {
 }
 
 /**
- * @param {DropRow[]} rows
- * @param {number} start
- * @param {number} end
- * @param {'group' | 'bookmark'} kind
- * @param {number} [depth]
- * @returns {number} rows of that kind, and depth, between the two positions
- */
-function countBetween(rows, start, end, kind, depth) {
-  return rows
-    .slice(Math.max(start, 0), end)
-    .filter((row) => row.kind === kind && (depth === undefined || row.depth === depth)).length;
-}
-
-/**
  * @param {string[]} path
  * @param {string[]} base
  * @returns {boolean} whether `path` is `base`, or sits inside it
  */
 function isInside(path, base) {
-  return (
-    base.length > 0 && base.length <= path.length && base.every((name, at) => path[at] === name)
-  );
+  return base.length > 0 && base.length <= path.length && base.every((name, at) => path[at] === name);
 }
 
 /**
@@ -166,49 +162,10 @@ function groupAtPath(tree, path) {
 /**
  * @param {BookmarkTree} tree
  * @param {string[]} path
- * @returns {Bookmark[]} the items sitting directly in that folder, or above every heading
- */
-function itemsOf(tree, path) {
-  return path.length ? (groupAtPath(tree, path)?.bookmarks ?? []) : tree.loose;
-}
-
-/**
- * @param {BookmarkTree} tree
- * @param {string[]} path
  * @returns {Group[]} the folders directly inside that one, or the top-level folders
  */
 function childrenOf(tree, path) {
   return path.length ? (groupAtPath(tree, path)?.children ?? []) : tree.groups;
-}
-
-/**
- * @param {number} index the position asked for
- * @param {string[]} fromPath where the entry is now
- * @param {number} fromIndex where it sits among that folder's own contents
- * @param {string[]} toPath where it is going
- * @returns {number} that position, as it reads once the entry has been taken out first
- */
-function shiftIndex(index, fromPath, fromIndex, toPath) {
-  const sameFolder = fromPath.join('/') === toPath.join('/');
-  return sameFolder && fromIndex !== -1 && fromIndex < index ? index - 1 : index;
-}
-
-/**
- * @param {string[]} lines
- * @param {boolean[]} isContent
- * @param {Group | null} owner the folder the item goes into, `null` for above every heading
- * @param {number} index
- * @returns {number} the line an item goes on to become the index-th item of that folder
- */
-function itemLine(lines, isContent, owner, index) {
-  const start = owner ? owner.headingLine : -1;
-  const end = firstHeadingLine(lines, isContent, start + 1);
-  const items = [];
-
-  for (let line = start + 1; line < end; line += 1) {
-    if (isContent[line] && parseBookmarks(lines[line]).length) items.push(line);
-  }
-  return index < items.length ? items[index] : (items.at(-1) ?? end - 1) + 1;
 }
 
 /**
@@ -217,7 +174,7 @@ function itemLine(lines, isContent, owner, index) {
  * @param {number} from
  * @returns {number} the first heading line at or after `from`, or the end of the file
  */
-function firstHeadingLine(lines, isContent, from = 0) {
+function firstHeadingLine(lines, isContent, from) {
   for (let line = Math.max(from, 0); line < lines.length; line += 1) {
     if (isContent[line] && headingLevel(lines[line]) !== null) return line;
   }
@@ -227,17 +184,52 @@ function firstHeadingLine(lines, isContent, from = 0) {
 /**
  * @param {string[]} lines
  * @param {boolean[]} isContent
+ * @param {Group | null} owner the folder the item goes into, `null` for above every heading
+ * @param {string | null} before the URL of the item it goes above, null for last
+ * @returns {number} the line an item goes on to sit in that place
+ */
+function itemLine(lines, isContent, owner, before) {
+  const start = owner ? owner.headingLine : -1;
+  const end = firstHeadingLine(lines, isContent, start + 1);
+  const wanted = before === null ? null : urlKey(before);
+  const items = [];
+
+  for (let line = start + 1; line < end; line += 1) {
+    if (!isContent[line]) continue;
+
+    const bookmarks = parseBookmarks(lines[line]);
+    if (!bookmarks.length) continue;
+    if (wanted !== null && bookmarks.some((entry) => urlKey(entry.url) === wanted)) return line;
+    items.push(line);
+  }
+  return (items.at(-1) ?? end - 1) + 1;
+}
+
+/**
+ * @param {string[]} lines
+ * @param {boolean[]} isContent
  * @param {BookmarkTree} tree
  * @param {string[]} parentPath the folder the block goes into, `[]` for the top level
- * @param {number} index
- * @returns {number} the line a folder block goes on to become the index-th child of that folder
+ * @param {string[] | null} before the path of the folder it goes above, null for last
+ * @param {number} level the level the block will have, which is what keeps a top-level folder
+ *   out of the reach of a shallower heading further down the file
+ * @returns {number} the line a folder block goes on to sit in that place
  */
-function childLine(lines, isContent, tree, parentPath, index) {
+function childLine(lines, isContent, tree, parentPath, before, level) {
   const children = childrenOf(tree, parentPath);
-  if (index < children.length) return children[index].headingLine;
+  if (before !== null) {
+    const wanted = before.join('/');
+    const target = children.find((child) => child.path.join('/') === wanted);
+    if (target) return target.headingLine;
+  }
 
   const parent = parentPath.length ? groupAtPath(tree, parentPath) : null;
-  return parent ? regionEnd(lines, isContent, parent.headingLine, parent.level) : lines.length;
+  return regionEnd(
+    lines,
+    isContent,
+    parent ? parent.headingLine : -1,
+    parent ? parent.level : level - 1,
+  );
 }
 
 /**
@@ -252,8 +244,26 @@ function shiftedHeading(line, delta) {
 
 /**
  * @param {string} markdown
- * @param {{ url: string, to: { parentPath: string[], index: number } }} change `url` finds the
- *   bookmark being moved; `to` is where `resolveDrop` said it goes
+ * @returns {string} the bookmarks in the order the note holds them
+ */
+function bookmarkOrder(markdown) {
+  return allBookmarks(parseBookmarkTree(markdown))
+    .map((entry) => urlKey(entry.url))
+    .join('\n');
+}
+
+/**
+ * @param {string} markdown
+ * @returns {string} the folders in the order the note holds them
+ */
+function folderOrder(markdown) {
+  return allGroupIds(parseBookmarkTree(markdown).groups).join('\n');
+}
+
+/**
+ * @param {string} markdown
+ * @param {{ url: string, to: { parentPath: string[], before: string | null } }} change `url`
+ *   finds the bookmark being moved; `before` is the URL of the item it goes above, or null
  * @returns {{ markdown: string, groupId: string }}
  */
 export function moveBookmark(markdown, { url, to }) {
@@ -261,30 +271,32 @@ export function moveBookmark(markdown, { url, to }) {
   const tree = parseBookmarkTree(text);
   const bookmark = allBookmarks(tree).find((entry) => urlKey(entry.url) === urlKey(url));
   if (!bookmark) throw new Error('That bookmark is not in the note.');
+  if (to.before !== null && urlKey(to.before) === urlKey(url)) return { markdown: text, groupId: '' };
 
-  const from = findBookmarkPath(tree, url) ?? [];
-  const fromIndex = itemsOf(tree, from).findIndex((entry) => urlKey(entry.url) === urlKey(url));
-  const target = normalizePath(to.parentPath);
-
+  const parentPath = normalizePath(to.parentPath);
   const { markdown: without } = removeBookmark(text, url);
   const after = parseBookmarkTree(without);
-  const owner = target.length ? groupAtPath(after, target) : null;
-  if (target.length && !owner) throw new Error(`The note has no “${target.join('/')}” folder.`);
+  const owner = parentPath.length ? groupAtPath(after, parentPath) : null;
+  if (parentPath.length && !owner) throw new Error(`The note has no “${parentPath.join('/')}” folder.`);
 
   const lines = without.split('\n');
   const isContent = contentLineMask(without);
-  const index = shiftIndex(to.index, from, fromIndex, target);
   const item = formatBookmark(bookmark, after.listMarker);
 
-  lines.splice(itemLine(lines, isContent, owner, index), 0, item);
-  return { markdown: lines.join('\n'), groupId: owner?.id ?? '' };
+  lines.splice(itemLine(lines, isContent, owner, to.before), 0, item);
+  const next = lines.join('\n');
+
+  return {
+    markdown: bookmarkOrder(next) === bookmarkOrder(text) ? text : next,
+    groupId: owner?.id ?? '',
+  };
 }
 
 /**
  * @param {string} markdown
- * @param {{ path: string | string[], to: { parentPath: string[], index: number } }} change
- *   `path` finds the folder being moved, with everything under it; `to` is where `resolveDrop`
- *   said it goes
+ * @param {{ path: string | string[], to: { parentPath: string[], before: string[] | null } }}
+ *   change `path` finds the folder being moved, with everything under it; `before` is the path
+ *   of the folder it goes above, or null
  * @returns {{ markdown: string, path: string[], level: number }}
  */
 export function moveGroup(markdown, { path, to }) {
@@ -296,6 +308,11 @@ export function moveGroup(markdown, { path, to }) {
 
   const parentPath = normalizePath(to.parentPath);
   if (isInside(parentPath, from)) throw new Error(`“${group.name}” cannot go inside itself.`);
+
+  const before = to.before === null ? null : normalizePath(to.before);
+  if (before !== null && before.join('/') === from.join('/')) {
+    return { markdown: text, path: from, level: group.level };
+  }
 
   const lines = text.split('\n');
   const isContent = contentLineMask(text);
@@ -318,9 +335,6 @@ export function moveGroup(markdown, { path, to }) {
     throw new Error(`“${group.name}” would nest deeper than markdown's ${DEEPEST_LEVEL} heading levels.`);
   }
 
-  const siblings = from.slice(0, -1);
-  const fromIndex = childrenOf(tree, siblings).findIndex((child) => child.name === group.name);
-
   lines.splice(group.headingLine, block.length);
   const without = lines.join('\n');
   const after = parseBookmarkTree(without);
@@ -328,8 +342,7 @@ export function moveGroup(markdown, { path, to }) {
     throw new Error(`The note has no “${parentPath.join('/')}” folder.`);
   }
 
-  const index = shiftIndex(to.index, siblings, fromIndex, parentPath);
-  const at = childLine(lines, contentLineMask(without), after, parentPath, index);
+  const at = childLine(lines, contentLineMask(without), after, parentPath, before, level);
   const moved =
     delta === 0
       ? block
@@ -338,5 +351,11 @@ export function moveGroup(markdown, { path, to }) {
         );
 
   lines.splice(at, 0, ...moved);
-  return { markdown: lines.join('\n'), path: [...parentPath, group.name], level };
+  const next = lines.join('\n');
+
+  return {
+    markdown: folderOrder(next) === folderOrder(text) ? text : next,
+    path: [...parentPath, group.name],
+    level,
+  };
 }

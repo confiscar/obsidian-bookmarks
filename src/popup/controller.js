@@ -16,6 +16,7 @@ import { renderBookmarkList } from './bookmark-list.js';
 import { createDragLayer } from './drag.js';
 import { bookIcon, clockIcon, gearIcon } from './icons.js';
 import { moveBookmark, moveGroup } from '../core/reorder.js';
+import { moveMarked } from '../core/front-matter.js';
 
 const PIN_KEY = 'pinned';
 const READ_KEY = 'read';
@@ -28,6 +29,22 @@ const readLaterSectionId = (name) => `read:${name.toLowerCase()}`;
 /** @param {string[]} parentPath @returns {string} that folder, or the top level for the root */
 const destinationOf = (parentPath) =>
   parentPath.length ? parentPath.join('/') : 'the top level';
+
+/**
+ * @param {string} markdown
+ * @param {{
+ *   kind: 'group' | 'bookmark' | 'pin',
+ *   url?: string,
+ *   path?: string[],
+ *   to: { parentPath: string[], before: string | string[] | null },
+ * }} change
+ * @returns {{ markdown: string }}
+ */
+const applyMove = (markdown, change) => {
+  if (change.kind === 'pin') return moveMarked(markdown, PIN_KEY, change.url, change.to.before);
+  if (change.kind === 'group') return moveGroup(markdown, { path: change.path, to: change.to });
+  return moveBookmark(markdown, { url: change.url, to: change.to });
+};
 
 /**
  * @typedef {object} PlatformPort
@@ -157,7 +174,7 @@ export function createController({ port, createStore, document: doc = globalThis
         render();
       },
     });
-    dragLayer.setRows(showingReadLater ? [] : rows);
+    dragLayer.setRows(rows);
 
     const visible = sections ?? state.tree;
     const isEmpty = !visible.loose.length && !visible.groups.length;
@@ -241,6 +258,7 @@ export function createController({ port, createStore, document: doc = globalThis
       path: [name],
       id: readLaterSectionId(name),
       headingLine: -1,
+      section: true,
       bookmarks: part.loose,
       children: namespaced(part.groups),
     });
@@ -272,11 +290,11 @@ export function createController({ port, createStore, document: doc = globalThis
 
   /**
    * @param {{
-   *   kind: 'group' | 'bookmark',
+   *   kind: 'group' | 'bookmark' | 'pin',
    *   url?: string,
    *   path?: string[],
    *   name?: string,
-   *   to: { parentPath: string[], index: number },
+   *   to: { parentPath: string[], before: string | string[] | null },
    * }} change what the drag layer let go of, and where
    */
   async function moveRow(change) {
@@ -284,13 +302,15 @@ export function createController({ port, createStore, document: doc = globalThis
     setBusy(true);
     try {
       const markdown = await note.readText();
-      const moved =
-        change.kind === 'group'
-          ? moveGroup(markdown, { path: change.path, to: change.to })
-          : moveBookmark(markdown, { url: change.url, to: change.to });
+      const moved = applyMove(markdown, change);
 
       if (moved.markdown !== markdown) await note.writeText(moved.markdown);
       await reload();
+
+      if (change.kind === 'pin') {
+        setStatus(info(`Moved “${change.name}” in the pinned list.`));
+        return;
+      }
 
       const label = change.kind === 'group' ? moved.path.at(-1) : change.name;
       setStatus(info(`Moved “${label}” to ${destinationOf(change.to.parentPath)}.`));

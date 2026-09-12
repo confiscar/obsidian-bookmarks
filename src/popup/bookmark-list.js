@@ -68,7 +68,14 @@ export function renderBookmarkList({
   for (const bookmark of tree.loose) {
     const element = bookmarkRow(bookmark, 0);
     elements.push(element);
-    draggable.push({ element, kind: 'bookmark', depth: 0, url: bookmark.url, name: bookmark.name });
+    draggable.push({
+      element,
+      kind: 'bookmark',
+      depth: 0,
+      url: bookmark.url,
+      name: bookmark.name,
+      parentPath: [],
+    });
   }
   for (const group of tree.groups) elements.push(...groupRows(group, 0));
 
@@ -87,7 +94,14 @@ export function renderBookmarkList({
     });
 
     if (!pinnedOpen) return [header];
-    return [header, ...pinned.map((bookmark) => bookmarkRow(bookmark, 1))];
+
+    const rows = [header];
+    for (const bookmark of pinned) {
+      const element = bookmarkRow(bookmark, 1);
+      draggable.push({ element, kind: 'pin', depth: 1, url: bookmark.url, name: bookmark.name });
+      rows.push(element);
+    }
+    return rows;
   }
 
   function groupRows(group, depth) {
@@ -105,8 +119,7 @@ export function renderBookmarkList({
       kind: 'group',
       depth,
       path: group.path,
-      open,
-      ownBookmarks: group.bookmarks.length,
+      section: group.section === true,
     });
 
     if (!open) return [header];
@@ -114,7 +127,14 @@ export function renderBookmarkList({
     const rows = [header];
     for (const bookmark of group.bookmarks) {
       const element = bookmarkRow(bookmark, depth + 1);
-      draggable.push({ element, kind: 'bookmark', depth: depth + 1, url: bookmark.url, name: bookmark.name });
+      draggable.push({
+        element,
+        kind: 'bookmark',
+        depth: depth + 1,
+        url: bookmark.url,
+        name: bookmark.name,
+        parentPath: group.path,
+      });
       rows.push(element);
     }
     for (const child of group.children) rows.push(...groupRows(child, depth + 1));
