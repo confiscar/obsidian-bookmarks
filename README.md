@@ -5,7 +5,7 @@ A small browser extension that keeps your bookmarks in a markdown file inside an
 - **★ Save bookmark** — prefills the page name, URL and folder, lets you edit all three, and writes one line into the note.
 - **Bookmark list** — your headings as folders, closed by default, with **Open all** / **Close all**. Click a bookmark to open it.
 - **Pinned** — a pin on every entry writes that bookmark into the note's front matter, holding it at the top of the list.
-- **Read later** — an optional second note, opened by the book button in the header: a clock button saves the page you are on into it, and the list splits into **Unread** and **Read**, each entry ticking between the two.
+- **Read later** — an optional second note, opened by the book button in the header: a clock button asks for the folder and saves the page you are on into it, and the list splits into **Unread** and **Read**, each entry ticking between the two.
 - **Edit and delete** — every entry also carries a pencil and a waste basket: edit rewrites the name, URL and folder, delete removes the line.
 - **Favicons** — each entry shows its site's icon, read from the browser's own cache rather than the network.
 - **⚙ Settings** — a page of its own (back button returns to the list) for choosing the file and how to reach Obsidian.
@@ -140,7 +140,7 @@ When there is nothing to show — Firefox has not seen the site, or the icon fai
 
 With a **Read later file** set, the popup grows two buttons that are easy to tell apart: a **book** in the header, left of **⚙**, which opens the read later list, and a **clock** under **★ Save bookmark**, which saves the page you are on. One looks, one saves — and the book stays lit while you are looking. Clear the path again and both go away.
 
-**Read later** captures the page you are on in one click — the same name and URL the save form would have prefilled — files it under `Unsorted` in the read later note, and switches to that list so you can watch it land. Capturing a page that is already there does not add a second copy; if it had been marked read, it goes back to the unread list.
+**Read later** opens the same form **★ Save bookmark** does, filled in for the page you are on, and files it in the folder you pick — the folder field offers the read later note's own headings, and the button says **Save for later** so there is no doubt which note is about to grow. Saving returns you to the read later list, where the page arrives under **Unread**.
 
 The read later view splits the note into **Unread** and **Read**: two sections that fold like folders, with **Unread open** and **Read closed** to start with. Entries keep the headings of the note they came from, and a heading with nothing left in it is left out of the view rather than shown empty.
 
@@ -282,5 +282,5 @@ Implement these five methods and select the adapter in `src/popup/index.js`:
 - On Firefox the favicon cache only knows sites you have visited with the extension installed; Chrome shows an icon for anything it has ever loaded.
 - Folders come from headings; markdown stops at six levels, so a deeper path is refused rather than flattened.
 - The whole file is re-read (and every link re-parsed) on each refresh — fine for a few thousand lines.
-- No duplicate detection, and no conflict handling beyond "Obsidian is the only writer". The read later button does not duplicate pages it already holds.
+- No duplicate detection, and no conflict handling beyond "Obsidian is the only writer".
 - Requires Obsidian to be running; closing it makes the list empty and saves fail.

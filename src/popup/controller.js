@@ -17,7 +17,6 @@ import { bookIcon, clockIcon } from './icons.js';
 
 const PIN_KEY = 'pinned';
 const READ_KEY = 'read';
-const READ_LATER_FOLDER = 'Unsorted';
 
 /**
  * @typedef {object} PlatformPort
@@ -307,54 +306,16 @@ export function createController({ port, createStore, document: doc = globalThis
     }
   }
 
-  /** One click: put the page in front of you at the top of the unread list. */
-  async function captureToReadLater() {
-    if (!hasReadLater()) return;
-
-    const tab = await port.getActiveTab().catch(() => null);
-    const url = normalizeUrl(tab?.url);
-    if (!url) {
-      setStatus(failure('That page cannot be saved for later.'));
-      return;
-    }
-    const name = (tab?.title ?? '').trim() || url;
-
-    setBusy(true);
-    try {
-      const markdown = await readLaterStore.readText();
-      const queued = findBookmarkPath(parseBookmarkTree(markdown), url) !== null;
-      const read = isMarked(markdown, url, READ_KEY);
-
-      let next = markdown;
-      let message = `Saved “${name}” for later.`;
-      if (queued) {
-        // Already there: make sure it is back in the unread list rather than adding a second copy.
-        if (read) next = toggleMarked(markdown, READ_KEY, { name, url }).markdown;
-        message = `“${name}” is already in Read later.`;
-      } else {
-        next = insertBookmark(markdown, {
-          path: READ_LATER_FOLDER,
-          bookmark: { name, url },
-        }).markdown;
-      }
-
-      if (next !== markdown) await readLaterStore.writeText(next);
-      await reload();
-      showView('readLater');
-      setStatus(info(message));
-    } catch (error) {
-      setStatus(failure(error.message));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function openBookmarkForm() {
+  /**
+   * @param {'bookmarks' | 'readLater'} view which note the form will write to; the folder it
+   *   offers and the mark it keeps with the URL both follow from this
+   */
+  async function openBookmarkForm(view) {
     const tab = await port.getActiveTab().catch(() => null);
     state.editing = null;
     state.pendingDelete = null;
-    state.view = 'bookmarks';
-    ui.confirmBookmark.textContent = 'Save';
+    state.view = view;
+    ui.confirmBookmark.textContent = view === 'readLater' ? 'Save for later' : 'Save';
     ui.name.value = (tab?.title ?? '').trim();
     ui.url.value = normalizeUrl(tab?.url) ? tab.url : '';
     ui.group.value = DEFAULT_GROUP;
@@ -377,13 +338,14 @@ export function createController({ port, createStore, document: doc = globalThis
   }
 
   function closeBookmarkForm() {
+    const back = state.view === 'readLater' ? 'readLater' : 'bookmarks';
     state.editing = null;
     ui.confirmBookmark.textContent = 'Save';
     ui.name.value = '';
     ui.url.value = '';
     ui.group.value = DEFAULT_GROUP;
     setStatus(null);
-    showView('bookmarks');
+    showView(back);
   }
 
   async function saveBookmark() {
@@ -642,7 +604,7 @@ export function createController({ port, createStore, document: doc = globalThis
       ui.readLaterView.prepend(bookIcon(doc, { size: 15 }));
 
       ui.saveBookmark.addEventListener('click', () => {
-        if (ui.bookmarkForm.hidden) openBookmarkForm();
+        if (ui.bookmarkForm.hidden) openBookmarkForm('bookmarks');
         else showView('bookmarks');
       });
       ui.bookmarkForm.addEventListener('submit', (event) => {
@@ -652,7 +614,7 @@ export function createController({ port, createStore, document: doc = globalThis
       ui.cancelBookmark.addEventListener('click', closeBookmarkForm);
       ui.confirmDelete.addEventListener('click', confirmDelete);
       ui.cancelDelete.addEventListener('click', cancelDelete);
-      ui.readLaterButton.addEventListener('click', captureToReadLater);
+      ui.readLaterButton.addEventListener('click', () => openBookmarkForm('readLater'));
       ui.readLaterView.addEventListener('click', () =>
         showView(state.view === 'readLater' ? 'bookmarks' : 'readLater'),
       );
