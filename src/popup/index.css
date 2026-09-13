@@ -269,6 +269,13 @@ button.icon.active {
   color: var(--error);
 }
 
+.status-action:not([hidden]) {
+  display: block;
+  margin: 8px 0 0;
+  padding: 7px 9px;
+  font-size: 12px;
+}
+
 #bookmark-list.dragging {
   user-select: none;
 }

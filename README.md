@@ -47,7 +47,7 @@ Pinned rows drag among themselves, in the front matter list they come from, and 
 
 ## Troubleshooting
 
-- **"Can't reach Obsidian at …"** — Obsidian is not running, the plugin is disabled, or the HTTP server is off. Try **Test connection** in settings.
+- **"Can't reach Obsidian at …"** — Obsidian is not running, the plugin is disabled, or the HTTP server is off. The popup offers an **Open Obsidian** button, which hands an `obsidian://` link to the app — the browser asks you to confirm that the first time. **Test connection** in settings retries.
 - **"Obsidian rejected the API key"** — re-copy the key from the plugin's settings.
 - **"File already exists."** — the configured path is not the one Obsidian's index has, so reads work but the write collides. The extension resolves the path against the vault before every read and write and reports the difference when you save settings. Obsidian logs the full stack for every 500 it returns: `Cmd+Opt+I` → Console.
 - **Firefox: the list never loads** — the host permission was not granted. Use **Request local access**, or `about:addons` → Permissions.

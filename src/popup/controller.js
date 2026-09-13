@@ -18,6 +18,7 @@ import { bookIcon, clockIcon, gearIcon } from './icons.js';
 import { moveBookmark, moveGroup } from '../core/reorder.js';
 import { moveMarked } from '../core/front-matter.js';
 
+const OBSIDIAN_URI = 'obsidian://open';
 const PIN_KEY = 'pinned';
 const READ_KEY = 'read';
 const UNREAD_SECTION = 'Unread';
@@ -109,7 +110,18 @@ export function createController({ port, createStore, document: doc = globalThis
   const info = (text) => ({ kind: 'info', text });
   const failure = (text) => ({ kind: 'error', text });
 
-  /** @param {{ kind: 'info' | 'error', text: string } | null} status */
+  /**
+   * @param {Error} error
+   * @returns {{ kind: 'error', text: string, unreachable: boolean }} a failure, flagged when it
+   *   was the connection that failed rather than anything Obsidian said
+   */
+  const failureOf = (error) => ({
+    kind: 'error',
+    text: error.message,
+    unreachable: Boolean(error?.cause),
+  });
+
+  /** @param {{ kind: 'info' | 'error', text: string, unreachable?: boolean } | null} status */
   const setStatus = (status) => {
     state.status = status;
     render();
@@ -139,6 +151,7 @@ export function createController({ port, createStore, document: doc = globalThis
       element.textContent = state.status?.text ?? '';
       element.dataset.kind = state.status?.kind ?? '';
     }
+    ui.openObsidian.hidden = !state.status?.unreachable;
 
     const showingReadLater = state.view === 'readLater';
     const readLater = hasReadLater();
@@ -315,7 +328,7 @@ export function createController({ port, createStore, document: doc = globalThis
       const label = change.kind === 'group' ? moved.path.at(-1) : change.name;
       setStatus(info(`Moved “${label}” to ${destinationOf(change.to.parentPath)}.`));
     } catch (error) {
-      setStatus(failure(error.message));
+      setStatus(failureOf(error));
     } finally {
       setBusy(false);
     }
@@ -331,7 +344,7 @@ export function createController({ port, createStore, document: doc = globalThis
       await reload();
       setStatus(info(marked ? `Pinned “${bookmark.name}”.` : `Unpinned “${bookmark.name}”.`));
     } catch (error) {
-      setStatus(failure(error.message));
+      setStatus(failureOf(error));
     } finally {
       setBusy(false);
     }
@@ -352,7 +365,7 @@ export function createController({ port, createStore, document: doc = globalThis
         info(marked ? `Marked “${bookmark.name}” as read.` : `Marked “${bookmark.name}” as unread.`),
       );
     } catch (error) {
-      setStatus(failure(error.message));
+      setStatus(failureOf(error));
     } finally {
       setBusy(false);
     }
@@ -428,7 +441,7 @@ export function createController({ port, createStore, document: doc = globalThis
       groupId = updated.groupId;
       await reload();
     } catch (error) {
-      setStatus(failure(error.message));
+      setStatus(failureOf(error));
       return;
     }
 
@@ -520,7 +533,7 @@ export function createController({ port, createStore, document: doc = globalThis
         ),
       );
     } catch (error) {
-      setStatus(failure(error.message));
+      setStatus(failureOf(error));
     } finally {
       setBusy(false);
     }
@@ -564,7 +577,7 @@ export function createController({ port, createStore, document: doc = globalThis
     try {
       await reload();
     } catch (error) {
-      setStatus(failure(error.message));
+      setStatus(failureOf(error));
       return;
     }
 
@@ -576,13 +589,22 @@ export function createController({ port, createStore, document: doc = globalThis
     }
   }
 
+  async function openObsidian() {
+    try {
+      await port.openUrl(OBSIDIAN_URI);
+      setStatus(info('Asked the browser to open Obsidian — it may ask you to confirm the “obsidian://” link.'));
+    } catch (error) {
+      setStatus(failure(`The browser would not open Obsidian: ${error.message}`));
+    }
+  }
+
   async function testConnection() {
     setBusy(true);
     try {
       await store.ping();
       setStatus(info('Obsidian answered.'));
     } catch (error) {
-      setStatus(failure(error.message));
+      setStatus(failureOf(error));
     } finally {
       setBusy(false);
     }
@@ -597,7 +619,7 @@ export function createController({ port, createStore, document: doc = globalThis
           : failure('Access was not granted — bookmarks cannot be loaded.'),
       );
     } catch (error) {
-      setStatus(failure(error.message));
+      setStatus(failureOf(error));
     }
   }
 
@@ -637,6 +659,7 @@ export function createController({ port, createStore, document: doc = globalThis
         readLaterPath: element('read-later-path'),
         readLaterButton: element('read-later'),
         readLaterView: element('read-later-view'),
+        openObsidian: element('open-obsidian'),
         testConnection: element('test-connection'),
         requestLocalAccess: element('request-local-access'),
       };
@@ -666,6 +689,7 @@ export function createController({ port, createStore, document: doc = globalThis
       ui.confirmDelete.addEventListener('click', confirmDelete);
       ui.cancelDelete.addEventListener('click', cancelDelete);
       ui.readLaterButton.addEventListener('click', () => openBookmarkForm('readLater'));
+      ui.openObsidian.addEventListener('click', () => openObsidian());
       ui.readLaterView.addEventListener('click', () =>
         showView(state.view === 'readLater' ? 'bookmarks' : 'readLater'),
       );
@@ -694,7 +718,7 @@ export function createController({ port, createStore, document: doc = globalThis
       try {
         await reload();
       } catch (error) {
-        setStatus(failure(error.message));
+        setStatus(failureOf(error));
         return;
       }
 

@@ -168,6 +168,7 @@ test('an unreachable Obsidian explains what to do', async (t) => {
 
   assert.ok(error instanceof FileStoreError);
   assert.match(error.message, /Can't reach Obsidian at http:\/\/127\.0\.0\.1:\d+/);
+  assert.ok(error.cause, 'a failed connection carries the underlying error, which the popup offers to fix');
 });
 
 test('ping reports whether the REST API is up', async (t) => {
